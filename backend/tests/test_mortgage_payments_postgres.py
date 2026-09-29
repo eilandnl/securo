@@ -80,3 +80,37 @@ async def test_one_statement_deleting_payment_and_principal_succeeds(
         )
         == 0
     )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_breakdown_saves_take_turns(
+    client, auth_headers, session, test_user, test_workspace
+):
+    import asyncio
+
+    payment, loan = await _make_payment_and_loan(
+        session, test_user, test_workspace, snapshot_date=date(2026, 5, 31)
+    )
+    body = {
+        "allocations": [
+            {"loan_account_id": str(loan.id), "principal_amount": 167.76, "interest_amount": 65.07}
+        ]
+    }
+
+    responses = await asyncio.gather(
+        *(
+            client.put(f"/api/mortgage-payments/{payment.id}", headers=auth_headers, json=body)
+            for _ in range(4)
+        )
+    )
+
+    assert [response.status_code for response in responses] == [200] * 4
+    assert await session.scalar(select(func.count()).select_from(MortgagePaymentAllocation)) == 1
+    assert (
+        await session.scalar(
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.source == MORTGAGE_PRINCIPAL_SOURCE)
+        )
+        == 1
+    )

@@ -84,12 +84,23 @@ def _payment_read(
     }
 
 
-async def _get_payment(session: AsyncSession, payment_id: uuid.UUID, workspace_id: uuid.UUID):
-    result = await session.execute(
+async def _get_payment(
+    session: AsyncSession,
+    payment_id: uuid.UUID,
+    workspace_id: uuid.UUID,
+    *,
+    lock: bool = False,
+):
+    query = (
         select(Transaction, Account)
         .join(Account, Transaction.account_id == Account.id)
         .where(Transaction.id == payment_id, Transaction.workspace_id == workspace_id)
     )
+    if lock:
+        # Replacing a breakdown deletes and re-inserts its rows; two saves of
+        # the same payment must take turns, or both insert the same loan part.
+        query = query.with_for_update(of=Transaction)
+    result = await session.execute(query)
     return result.one_or_none()
 
 
@@ -149,7 +160,7 @@ async def replace_mortgage_payment_allocations(
     ctx: WorkspaceContext = Depends(current_writable_workspace),
     session: AsyncSession = Depends(get_async_session),
 ):
-    payment_row = await _get_payment(session, payment_id, ctx.workspace.id)
+    payment_row = await _get_payment(session, payment_id, ctx.workspace.id, lock=True)
     if payment_row is None:
         raise HTTPException(404, "Payment transaction not found")
     payment, payment_account = payment_row
@@ -219,7 +230,7 @@ async def delete_mortgage_payment_allocations(
     ctx: WorkspaceContext = Depends(current_writable_workspace),
     session: AsyncSession = Depends(get_async_session),
 ):
-    if await _get_payment(session, payment_id, ctx.workspace.id) is None:
+    if await _get_payment(session, payment_id, ctx.workspace.id, lock=True) is None:
         raise HTTPException(404, "Payment transaction not found")
     await _delete_allocations(session, payment_id, ctx.workspace.id)
     await session.commit()

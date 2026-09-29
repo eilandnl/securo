@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useDateLocale, useDisplayLocale } from '@/hooks/use-display-locale'
 import { formatAmountInput, formatCurrency, parseAmountInput } from '@/lib/format'
+import { amountToCents, parseCents } from '@/lib/mortgage-split'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/auth-context'
 import { assets as assetsApi, currencies as currenciesApi, transactions as transactionsApi, settings as settingsApi, payees as payeesApi, rules as rulesApi, categories as categoriesApi, categoryGroups as categoryGroupsApi, mortgagePayments as mortgagePaymentsApi } from '@/lib/api'
@@ -1532,8 +1533,8 @@ function MortgagePaymentEditor({
       .filter(item => amounts[item.id])
       .map(item => ({
         loan_account_id: item.id,
-        principal_amount: Number(amounts[item.id].principal || 0),
-        interest_amount: Number(amounts[item.id].interest || 0),
+        principal_amount: (parseCents(amounts[item.id].principal) ?? 0) / 100,
+        interest_amount: (parseCents(amounts[item.id].interest) ?? 0) / 100,
       }))),
     onSuccess: async () => {
       await refreshMortgageData()
@@ -1551,10 +1552,14 @@ function MortgagePaymentEditor({
     onError: () => toast.error(t('transactions.mortgageSaveError')),
   })
   if (account?.type === 'loan' || loans.length === 0) return null
-  const total = loans.reduce((sum, item) => {
+  // Compare whole cents: the backend requires two decimals and an exact total.
+  const parts = loans.flatMap(item => {
     const value = amounts[item.id]
-    return sum + (value ? Number(value.principal || 0) + Number(value.interest || 0) : 0)
-  }, 0)
+    return value ? [parseCents(value.principal), parseCents(value.interest)] : []
+  })
+  const partsValid = parts.every(cents => cents !== null)
+  const totalCents = parts.reduce<number>((sum, cents) => sum + (cents ?? 0), 0)
+  const total = totalCents / 100
   const percentage = (value: string, totalAmount: number) => totalAmount ? (Number(value || 0) / totalAmount * 100).toFixed(1) : '0.0'
   return (
     <section className="rounded-lg border border-border p-3 space-y-3">
@@ -1584,7 +1589,7 @@ function MortgagePaymentEditor({
         )
       })}
       <p className="text-xs text-muted-foreground">{t('transactions.mortgagePaymentTotal', { total: total.toFixed(2), payment: Number(transaction.amount).toFixed(2), currency: transaction.currency })}</p>
-      <Button type="button" size="sm" variant="outline" disabled={save.isPending || Math.abs(total - transaction.amount) > 0.01 || total <= 0} onClick={() => save.mutate()}>
+      <Button type="button" size="sm" variant="outline" disabled={save.isPending || !partsValid || totalCents <= 0 || totalCents !== amountToCents(Number(transaction.amount))} onClick={() => save.mutate()}>
         {save.isPending ? t('common.saving') : t('transactions.saveMortgageAllocation')}
       </Button>
       {data?.allocations.length ? <Button type="button" size="sm" variant="ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>{t('transactions.removeMortgageAllocation')}</Button> : null}

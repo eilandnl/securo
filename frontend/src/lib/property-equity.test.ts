@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getNetAssetValuePrimary } from '@/lib/property-equity'
+import { getLoanHistoryDebt, getNetAssetValuePrimary } from '@/lib/property-equity'
 
 describe('property equity', () => {
   const property = { id: 'home', type: 'real_estate', current_value: 593000, current_value_primary: null }
@@ -29,5 +29,15 @@ describe('property equity', () => {
     expect(getNetAssetValuePrimary(property, [
       { ...loans[0], current_balance: 25 },
     ])).toBe(593000)
+  })
+
+  it('reads history debt with the sign each loan kind reports', () => {
+    expect(getLoanHistoryDebt(-200000, false)).toBe(200000)
+    expect(getLoanHistoryDebt(200000, true)).toBe(200000)
+  })
+
+  it('treats an overpaid loan in history as no debt, like the current total', () => {
+    expect(getLoanHistoryDebt(25, false)).toBe(0)
+    expect(getLoanHistoryDebt(-25, true)).toBe(0)
   })
 })
