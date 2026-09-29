@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useDisplayLocale, useDateLocale } from '@/hooks/use-display-locale'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { accounts, connections, currencies } from '@/lib/api'
+import { accounts, assets, connections, currencies } from '@/lib/api'
 import { localDateString } from '@/lib/date-utils'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
@@ -47,6 +47,7 @@ const ACCOUNT_TYPE_OPTIONS = [
   { value: 'checking', labelKey: 'accounts.typeChecking' },
   { value: 'savings', labelKey: 'accounts.typeSavings' },
   { value: 'credit_card', labelKey: 'accounts.typeCreditCard' },
+  { value: 'loan', labelKey: 'accounts.typeLoan' },
   { value: 'investment', labelKey: 'accounts.typeInvestment' },
   { value: 'wallet', labelKey: 'accounts.typeWallet' },
 ] as const
@@ -675,6 +676,10 @@ function AccountDialog({
     credit_limit?: number | null
     statement_close_day?: number | null
     payment_due_day?: number | null
+    secured_asset_id?: string | null
+    mortgage_type?: 'annuity' | 'linear' | 'interest_only' | null
+    annual_interest_rate?: number | null
+    maturity_date?: string | null
   }) => void
   loading: boolean
 }) {
@@ -686,6 +691,11 @@ function AccountDialog({
     queryFn: currencies.list,
     staleTime: Infinity,
   })
+  const { data: propertyAssets } = useQuery({
+    queryKey: ['assets'],
+    queryFn: () => assets.list(),
+    enabled: open,
+  })
   const [name, setName] = useState(account?.name ?? '')
   const [displayName, setDisplayName] = useState(account?.display_name ?? '')
   const [type, setType] = useState(account?.type ?? 'checking')
@@ -695,6 +705,10 @@ function AccountDialog({
   const [creditLimit, setCreditLimit] = useState(account?.credit_limit?.toString() ?? '')
   const [statementCloseDay, setStatementCloseDay] = useState(account?.statement_close_day?.toString() ?? '')
   const [paymentDueDay, setPaymentDueDay] = useState(account?.payment_due_day?.toString() ?? '')
+  const [securedAssetId, setSecuredAssetId] = useState(account?.secured_asset_id ?? '')
+  const [mortgageType, setMortgageType] = useState(account?.mortgage_type ?? 'annuity')
+  const [annualInterestRate, setAnnualInterestRate] = useState(account?.annual_interest_rate?.toString() ?? '')
+  const [maturityDate, setMaturityDate] = useState(account?.maturity_date ?? '')
 
   const [formSource, setFormSource] = useState<{ account: typeof account } | null>(null)
   if (!formSource || formSource.account !== account) {
@@ -708,6 +722,10 @@ function AccountDialog({
     setCreditLimit(account?.credit_limit?.toString() ?? '')
     setStatementCloseDay(account?.statement_close_day?.toString() ?? '')
     setPaymentDueDay(account?.payment_due_day?.toString() ?? '')
+    setSecuredAssetId(account?.secured_asset_id ?? '')
+    setMortgageType(account?.mortgage_type ?? 'annuity')
+    setAnnualInterestRate(account?.annual_interest_rate?.toString() ?? '')
+    setMaturityDate(account?.maturity_date ?? '')
   }
 
   return (
@@ -731,6 +749,10 @@ function AccountDialog({
             onSave({
               ...(!isConnected && { name, balance: parseFloat(balance), balance_date: balanceDate, currency }),
               type,
+              secured_asset_id: type === 'loan' ? securedAssetId || null : null,
+              mortgage_type: type === 'loan' ? mortgageType : null,
+              annual_interest_rate: type === 'loan' && annualInterestRate ? Number(annualInterestRate) : null,
+              maturity_date: type === 'loan' ? maturityDate || null : null,
               display_name: displayName.trim() || null,
               ...(isCC && {
                 credit_limit: creditLimit !== '' ? parseFloat(creditLimit) : null,
@@ -745,6 +767,42 @@ function AccountDialog({
             <Label>{t('accounts.accountName')}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} required disabled={!!account?.connection_id} />
           </div>
+          {type === 'loan' && (
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <Label>{t('accounts.securedProperty')}</Label>
+              <select
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground"
+                value={securedAssetId}
+                onChange={(e) => setSecuredAssetId(e.target.value)}
+              >
+                <option value="">{t('accounts.noSecuredProperty')}</option>
+                {(propertyAssets ?? []).filter((asset) => asset.type === 'real_estate').map((asset) => (
+                  <option key={asset.id} value={asset.id}>{asset.name}</option>
+                ))}
+              </select>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="space-y-1 text-sm">
+                  <span>{t('accounts.mortgageType')}</span>
+                  <select className="w-full border border-border rounded-lg px-3 py-2 bg-card" value={mortgageType} onChange={e => setMortgageType(e.target.value as typeof mortgageType)}>
+                    <option value="annuity">{t('accounts.mortgageAnnuity')}</option>
+                    <option value="linear">{t('accounts.mortgageLinear')}</option>
+                    <option value="interest_only">{t('accounts.mortgageInterestOnly')}</option>
+                  </select>
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span>{t('accounts.annualInterestRate')}</span>
+                  <Input type="number" min="0" max="100" step="0.001" value={annualInterestRate} onChange={e => setAnnualInterestRate(e.target.value)} placeholder="4.04" />
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t(mortgageType === 'annuity' ? 'accounts.mortgageAnnuityHint' : mortgageType === 'linear' ? 'accounts.mortgageLinearHint' : 'accounts.mortgageInterestOnlyHint')}
+              </p>
+              <label className="block space-y-1 text-sm">
+                <span>{t('accounts.maturityDate')}</span>
+                <Input type="date" value={maturityDate} onChange={e => setMaturityDate(e.target.value)} />
+              </label>
+            </div>
+          )}
           {account?.connection_id && (
             <div className="space-y-2">
               <Label>{t('accounts.displayName')}</Label>
@@ -804,12 +862,14 @@ function AccountDialog({
                   <Label>
                     {type === 'credit_card'
                       ? t('accounts.balanceCreditCard')
+                      : type === 'loan'
+                        ? t('accounts.balanceLoan')
                       : t('accounts.balance')}
                   </Label>
                   <Input
                     type="number"
                     step="0.01"
-                    min={type === 'credit_card' ? '0' : undefined}
+                    min={type === 'credit_card' || type === 'loan' ? '0' : undefined}
                     value={balance}
                     onChange={(e) => setBalance(e.target.value)}
                   />

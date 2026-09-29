@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useDisplayLocale, useDateLocale } from '@/hooks/use-display-locale'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRegisterPageChatContext } from '@/lib/page-chat-context'
-import { assets, assetGroups, currencies as currenciesApi } from '@/lib/api'
+import { accounts as accountsApi, assets, assetGroups, currencies as currenciesApi } from '@/lib/api'
 import { localDateString } from '@/lib/date-utils'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
-import type { Asset, AssetGroup, AssetTransaction, AssetValue, MarketSymbolMatch, MarketSymbolQuote } from '@/types'
+import type { Account, Asset, AssetGroup, AssetTransaction, AssetValue, MarketSymbolMatch, MarketSymbolQuote } from '@/types'
 import {
   Home,
   Car,
@@ -58,8 +58,25 @@ import { useAuth } from '@/contexts/auth-context'
 import { useWorkspace } from '@/contexts/workspace-context'
 import { useCollectionFilter } from '@/contexts/collection-filter-context'
 import { getAssetProfit } from '@/lib/asset-profit'
-import { getPortfolioShare, getPortfolioTotalPrimary } from '@/lib/asset-portfolio-share'
+import { getNetAssetValuePrimary } from '@/lib/property-equity'
 import { formatCurrency } from '@/lib/format'
+
+function estimateMortgagePayment(account: Account): number | null {
+  if (!account.mortgage_type || account.annual_interest_rate == null || !account.maturity_date) return null
+  const [year, month] = account.maturity_date.split('-').map(Number)
+  const now = new Date()
+  const maturity = new Date(account.maturity_date + 'T00:00:00')
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  if (maturity <= today) return null
+  const months = Math.max(1, (year - now.getFullYear()) * 12 + month - (now.getMonth() + 1))
+  const principal = Math.abs(account.current_balance)
+  const monthlyRate = account.annual_interest_rate / 1200
+  if (account.mortgage_type === 'annuity') {
+    return monthlyRate === 0 ? principal / months : principal * monthlyRate / (1 - Math.pow(1 + monthlyRate, -months))
+  }
+  if (account.mortgage_type === 'linear') return principal / months + principal * monthlyRate
+  return principal * monthlyRate
+}
 
 // Renders a logo image when one is available, falling back to the asset's
 // type-based Lucide icon on missing URL or broken image. Uses the type's
@@ -259,6 +276,10 @@ export default function AssetsPage() {
     queryKey: ['assets'],
     queryFn: () => assets.list(false),
   })
+  const { data: accountsList, isLoading: accountsLoading, isError: accountsError } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: () => accountsApi.list(),
+  })
 
   // Active Collection filter (issue #105): when a collection is active, scope
   // the Assets page to the assets in its wallets (asset_groups). A collection
@@ -274,14 +295,44 @@ export default function AssetsPage() {
     queryKey: ['portfolio-trend'],
     queryFn: () => assets.portfolioTrend(),
   })
+  const mortgageHistoryRange = rawPortfolioData?.trend.length
+    ? [String(rawPortfolioData.trend[0].date), String(rawPortfolioData.trend[rawPortfolioData.trend.length - 1].date)] as const
+    : null
+  const propertyAssetIds = new Set((rawPortfolioData?.assets ?? []).filter(asset => asset.type === 'real_estate').map(asset => asset.id))
+  const linkedMortgageAccounts = (accountsList ?? []).filter(account =>
+    account.type === 'loan' && account.secured_asset_id && propertyAssetIds.has(account.secured_asset_id),
+  )
+  const mortgageHistoryQuery = useQuery({
+    queryKey: ['mortgage-balance-history', linkedMortgageAccounts.map(account => account.id).sort(), mortgageHistoryRange],
+    queryFn: async (): Promise<Record<string, { date: string; balance: number; balance_primary?: number }[]>> => Object.fromEntries(
+      await Promise.all(linkedMortgageAccounts.map(async account => [
+        account.id,
+        await accountsApi.balanceHistory(account.id, mortgageHistoryRange?.[0], mortgageHistoryRange?.[1]),
+      ] as const)),
+    ),
+    enabled: !!mortgageHistoryRange && linkedMortgageAccounts.length > 0,
+  })
   // Scope the portfolio chart + total to the active collection's wallets too.
   // Trend rows are keyed by asset id, so we keep only the in-collection asset
   // columns and recompute each row's `_total`.
   const portfolioData = useMemo(() => {
-    if (!activeWalletIds || !rawPortfolioData) return rawPortfolioData
-    const allowed = new Set(activeWalletIds)
-    const keptAssets = rawPortfolioData.assets.filter((a) => a.group_id && allowed.has(a.group_id))
+    if (!rawPortfolioData) return rawPortfolioData
+    const allowed = activeWalletIds ? new Set(activeWalletIds) : null
+    const keptAssets = allowed
+      ? rawPortfolioData.assets.filter((a) => a.group_id && allowed.has(a.group_id))
+      : rawPortfolioData.assets
     const keptIds = new Set(keptAssets.map((a) => a.id))
+    const mortgageHistoryByAccount = new Map(
+      Object.entries(mortgageHistoryQuery.data ?? {}).map(([accountId, history]) => [
+        accountId,
+        new Map(history.map(point => [point.date, Number(point.balance_primary ?? point.balance)])),
+      ]),
+    )
+    const loansByProperty = new Map<string, Account[]>()
+    for (const account of linkedMortgageAccounts) {
+      const propertyId = account.secured_asset_id!
+      loansByProperty.set(propertyId, [...(loansByProperty.get(propertyId) ?? []), account])
+    }
     const trend = rawPortfolioData.trend.map((row) => {
       const next: Record<string, unknown> = { date: (row as { date: unknown }).date }
       let total = 0
@@ -292,24 +343,37 @@ export default function AssetsPage() {
           total += Number(v) || 0
         }
       }
+      for (const [propertyId, loans] of loansByProperty) {
+        if (!keptIds.has(propertyId)) continue
+        const date = String(next.date)
+        // Balance history is signed per account kind: manual loans walk a
+        // negative ledger, connected ones report positive-for-debt. The debt
+        // itself is what reduces equity either way.
+        const mortgageBalance = loans.reduce((sum, loan) => {
+          return sum - Math.abs(mortgageHistoryByAccount.get(loan.id)?.get(date) ?? 0)
+        }, 0)
+        const grossValue = Number(next[propertyId]) || 0
+        const equityValue = grossValue + mortgageBalance
+        next[propertyId] = equityValue
+        total += equityValue - grossValue
+      }
       next._total = total
       return next
     })
     const lastTotal = trend.length ? Number((trend[trend.length - 1] as { _total?: number })._total) || 0 : 0
     return { ...rawPortfolioData, assets: keptAssets, trend, total: lastTotal }
-  }, [rawPortfolioData, activeWalletIds])
+  }, [rawPortfolioData, activeWalletIds, linkedMortgageAccounts, mortgageHistoryQuery.data])
 
   // Publish a snapshot of what's on the Assets page so the global chat
   // (⌘J) can answer "what does this chart mean / what are these
   // wallets?" without needing the user to spell it out.
-  const totalValue = (assetsList ?? []).reduce(
-    (acc: number, a: { current_value?: number | null }) => acc + Number(a.current_value || 0),
-    0,
-  )
+  const netAssetValuePrimary = (asset: Pick<Asset, 'id' | 'type' | 'current_value' | 'current_value_primary'>) =>
+    getNetAssetValuePrimary(asset, linkedMortgageAccounts)
+  const totalValue = (assetsList ?? []).reduce((total, asset) => total + netAssetValuePrimary(asset), 0)
   const byType: Record<string, number> = {}
-  for (const a of (assetsList ?? []) as Array<{ type?: string; current_value?: number | null }>) {
+  for (const a of (assetsList ?? []) as Array<Pick<Asset, 'id' | 'type' | 'current_value' | 'current_value_primary'>>) {
     if (!a.type) continue
-    byType[a.type] = (byType[a.type] || 0) + Number(a.current_value || 0)
+    byType[a.type] = (byType[a.type] || 0) + netAssetValuePrimary(a)
   }
   const portfolioTotal = (portfolioData as { total?: number } | undefined)?.total
   const assetsCtxKey = `${assetsList?.length ?? 0}:${totalValue.toFixed(2)}:${portfolioTotal ?? ''}`
@@ -337,6 +401,7 @@ export default function AssetsPage() {
     queryClient.refetchQueries({ queryKey: ['assets'] })
     queryClient.refetchQueries({ queryKey: ['portfolio-trend'] })
     queryClient.refetchQueries({ queryKey: ['dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['mortgage-balance-history'] })
   }
 
   const createMutation = useMutation({
@@ -494,7 +559,7 @@ export default function AssetsPage() {
   const soldAssets = assetsList?.filter(a => a.sell_date) ?? []
   // Denominator for the "% of portfolio" column: current holdings only, in the
   // user's primary currency, so the active rows add up to 100%.
-  const portfolioTotalPrimary = getPortfolioTotalPrimary(activeAssets)
+  const portfolioTotalPrimary = activeAssets.reduce((sum, asset) => sum + netAssetValuePrimary(asset), 0)
 
   // Debounced ticker search. Runs only when the market-price method is
   // selected and the query is non-trivial — keeps the autocomplete snappy
@@ -737,7 +802,9 @@ export default function AssetsPage() {
     const isProviderOwned = isSynced && !isMarketPriced
     const hasCost = asset.average_price != null && asset.total_invested != null
     const profit = getAssetProfit(asset)
-    const pctOfPortfolio = asset.sell_date ? null : getPortfolioShare(asset, portfolioTotalPrimary)
+    const pctOfPortfolio = asset.sell_date || portfolioTotalPrimary === 0
+      ? null
+      : (netAssetValuePrimary(asset) / portfolioTotalPrimary) * 100
     const needsBuys = isMarketPriced && !hasCost && !asset.sell_date
 
     return (
@@ -812,7 +879,12 @@ export default function AssetsPage() {
           {/* Saldo */}
           <div className="text-right tabular-nums">
             {asset.current_value != null ? (
-              <>
+              asset.type === 'real_estate' ? (
+                <>
+                  <span className="font-semibold text-foreground">{mask(formatCurrency(netAssetValuePrimary(asset), userCurrency, locale))}</span>
+                  <span className="block text-[10px] text-muted-foreground">{t('assets.propertyValue')}: {mask(formatCurrency(asset.current_value, asset.currency, locale))}</span>
+                </>
+              ) : <>
                 <span className="font-semibold text-foreground">{mask(formatCurrency(asset.current_value, asset.currency, locale))}</span>
                 {asset.current_value_primary != null && asset.currency !== userCurrency && (
                   <span className="block text-[10px] text-muted-foreground">{mask(formatCurrency(asset.current_value_primary, userCurrency, locale))}</span>
@@ -844,7 +916,21 @@ export default function AssetsPage() {
         </div>
 
         {isExpanded && (
-          isMarketPriced ? (
+          <>
+          {asset.type === 'real_estate' && (
+            <PropertyMortgageSection
+              asset={asset}
+              accounts={(accountsList ?? []).filter(account => account.type === 'loan')}
+              canWrite={canWrite}
+              locale={locale}
+              mask={mask}
+              onChanged={() => {
+                queryClient.refetchQueries({ queryKey: ['accounts'] })
+                refetchAssetViews()
+              }}
+            />
+          )}
+          {isMarketPriced ? (
             <>
               {/* Value-evolution chart on top, then the buy/sell ledger. */}
               <AssetDetail assetId={asset.id} currency={asset.currency} locale={locale} dateLocale={dateLocale} purchasePrice={asset.purchase_price} purchaseDate={asset.purchase_date} valuationMethod={asset.valuation_method} canWrite={canWrite} chartOnly />
@@ -860,7 +946,8 @@ export default function AssetsPage() {
             </>
           ) : (
             <AssetDetail assetId={asset.id} currency={asset.currency} locale={locale} dateLocale={dateLocale} purchasePrice={asset.purchase_price} purchaseDate={asset.purchase_date} valuationMethod={asset.valuation_method} canWrite={canWrite} />
-          )
+          )}
+          </>
         )}
       </div>
     )
@@ -955,7 +1042,7 @@ export default function AssetsPage() {
     const isSynced = wallet.source !== 'manual'
     // Sum in wallet's reported current_value (already computed by backend).
     // Fall back to per-asset sum if the rollup is stale after a move.
-    const total = walletAssets.reduce((s, a) => s + (a.current_value_primary ?? a.current_value ?? 0), 0) || wallet.current_value_primary || wallet.current_value
+    const total = walletAssets.reduce((sum, asset) => sum + netAssetValuePrimary(asset), 0)
 
     // Only show the institution as a subtitle when it's actually
     // additional information — if the user hasn't renamed the wallet,
@@ -1089,7 +1176,7 @@ export default function AssetsPage() {
       ) : (
       <>
       {/* Portfolio Chart */}
-      {portfolioData && portfolioData.trend.length > 0 && (
+      {portfolioData && portfolioData.trend.length > 0 && (linkedMortgageAccounts.length === 0 || mortgageHistoryQuery.isSuccess) && (
         <PortfolioChart
           data={portfolioData}
           wallets={sortedWallets}
@@ -1100,7 +1187,9 @@ export default function AssetsPage() {
         />
       )}
 
-      {isLoading ? (
+      {accountsError || mortgageHistoryQuery.isError ? (
+        <p role="alert" className="text-sm text-destructive">{t('assets.mortgageBalancesUnavailable')}</p>
+      ) : isLoading || accountsLoading || (linkedMortgageAccounts.length > 0 && mortgageHistoryQuery.isPending) ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
         </div>
@@ -1705,6 +1794,86 @@ export default function AssetsPage() {
         onClose={() => setAddTxAssetId(null)}
         onChanged={refetchAssetViews}
       />
+    </div>
+  )
+}
+
+function PropertyMortgageSection({ asset, accounts, canWrite, locale, mask, onChanged }: {
+  asset: Asset
+  accounts: Account[]
+  canWrite: boolean
+  locale: string
+  mask: (value: string) => string
+  onChanged: () => void
+}) {
+  const { t } = useTranslation()
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [mode, setMode] = useState<'link' | 'create'>('link')
+  const [selectedLoanId, setSelectedLoanId] = useState('')
+  const [name, setName] = useState('')
+  const [balance, setBalance] = useState('')
+  const [mortgageType, setMortgageType] = useState<Account['mortgage_type']>('annuity')
+  const [rate, setRate] = useState('')
+  const [maturityDate, setMaturityDate] = useState('')
+  const linkedLoans = accounts.filter(account => account.secured_asset_id === asset.id)
+  const unlinkedLoans = accounts.filter(account => !account.secured_asset_id)
+  const saveMutation = useMutation({
+    mutationFn: async () => mode === 'link'
+      ? accountsApi.update(selectedLoanId, { secured_asset_id: asset.id })
+      : accountsApi.create({
+        name: name.trim(), type: 'loan', balance: Number(balance), currency: asset.currency,
+        secured_asset_id: asset.id, mortgage_type: mortgageType,
+        annual_interest_rate: rate ? Number(rate) : null, maturity_date: maturityDate || null,
+      }),
+    onSuccess: () => {
+      onChanged()
+      setDialogOpen(false)
+      setName(''); setBalance(''); setRate(''); setMaturityDate('')
+      toast.success(t('assets.mortgageSaved'))
+    },
+    onError: () => toast.error(t('common.error')),
+  })
+  const unlinkMutation = useMutation({
+    mutationFn: (id: string) => accountsApi.update(id, { secured_asset_id: null }),
+    onSuccess: onChanged,
+    onError: () => toast.error(t('common.error')),
+  })
+  const totalDebt = linkedLoans.reduce((sum, account) => sum + Math.max(0, -account.current_balance), 0)
+
+  return (
+    <div className="px-4 py-3 border-t border-border bg-muted/20">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h3 className="text-xs font-semibold">{t('assets.linkedMortgages')}</h3>
+        {canWrite && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setMode(unlinkedLoans.length ? 'link' : 'create'); setDialogOpen(true) }}><Plus size={13} className="mr-1" />{t('assets.addMortgage')}</Button>}
+      </div>
+      {linkedLoans.length ? <div className="space-y-2">
+        {linkedLoans.map(account => <div key={account.id} className="flex items-start justify-between gap-3 text-xs">
+          <span className="text-muted-foreground">{account.display_name || account.name}
+            {account.mortgage_type && <span className="ml-1">· {t(`accounts.mortgage${account.mortgage_type === 'annuity' ? 'Annuity' : account.mortgage_type === 'linear' ? 'Linear' : 'InterestOnly'}`)}</span>}
+            {account.annual_interest_rate != null && <span className="ml-1">· {account.annual_interest_rate}%</span>}
+            {estimateMortgagePayment(account) != null && <span className="block">{t('accounts.estimatedPayment')}: {mask(formatCurrency(estimateMortgagePayment(account)!, account.currency, locale))}</span>}
+          </span>
+          <span className="flex items-center gap-2 shrink-0 tabular-nums">{mask(formatCurrency(Math.abs(account.current_balance), account.currency, locale))}
+            {canWrite && <button type="button" className="text-muted-foreground hover:text-rose-600" title={t('assets.unlinkMortgage')} onClick={() => unlinkMutation.mutate(account.id)}><Trash2 size={13} /></button>}
+          </span>
+        </div>)}
+        {asset.current_value != null && linkedLoans.every(account => account.currency === asset.currency) && <div className="pt-2 border-t border-border text-xs font-medium">{t('assets.mortgageDebtEquity', { debt: formatCurrency(totalDebt, asset.currency, locale), equity: formatCurrency(asset.current_value - totalDebt, asset.currency, locale) })}</div>}
+      </div> : <p className="text-xs text-muted-foreground">{t('assets.noMortgageLinked')}</p>}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{t('assets.addMortgage')}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2"><Button type="button" size="sm" variant={mode === 'link' ? 'default' : 'outline'} onClick={() => setMode('link')}>{t('assets.linkExistingLoan')}</Button><Button type="button" size="sm" variant={mode === 'create' ? 'default' : 'outline'} onClick={() => setMode('create')}>{t('assets.createLoan')}</Button></div>
+            {mode === 'link' ? (unlinkedLoans.length ? <div className="space-y-2"><Label>{t('assets.selectLoan')}</Label><select className="w-full border border-border rounded-lg px-3 py-2 bg-card" value={selectedLoanId} onChange={event => setSelectedLoanId(event.target.value)}><option value="">{t('assets.selectLoan')}</option>{unlinkedLoans.map(account => <option key={account.id} value={account.id}>{account.display_name || account.name}</option>)}</select></div> : <p className="text-sm text-muted-foreground">{t('assets.noUnlinkedLoans')}</p>) : <div className="space-y-3">
+              <label className="block space-y-1 text-sm"><span>{t('accounts.accountName')}</span><Input value={name} onChange={event => setName(event.target.value)} required /></label>
+              <label className="block space-y-1 text-sm"><span>{t('accounts.currentBalance')}</span><Input type="number" min="0" step="0.01" value={balance} onChange={event => setBalance(event.target.value)} required /></label>
+              <div className="grid grid-cols-2 gap-3"><label className="space-y-1 text-sm"><span>{t('accounts.mortgageType')}</span><select className="w-full border border-border rounded-lg px-3 py-2 bg-card" value={mortgageType ?? 'annuity'} onChange={event => setMortgageType(event.target.value as Account['mortgage_type'])}><option value="annuity">{t('accounts.mortgageAnnuity')}</option><option value="linear">{t('accounts.mortgageLinear')}</option><option value="interest_only">{t('accounts.mortgageInterestOnly')}</option></select></label><label className="space-y-1 text-sm"><span>{t('accounts.annualInterestRate')}</span><Input type="number" min="0" max="100" step="0.001" value={rate} onChange={event => setRate(event.target.value)} /></label></div>
+              <label className="block space-y-1 text-sm"><span>{t('accounts.maturityDate')}</span><Input type="date" value={maturityDate} onChange={event => setMaturityDate(event.target.value)} /></label>
+            </div>}
+            <DialogFooter><Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('common.cancel')}</Button><Button type="button" disabled={saveMutation.isPending || (mode === 'link' ? !selectedLoanId : !name.trim() || !balance)} onClick={() => saveMutation.mutate()}>{t('common.save')}</Button></DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

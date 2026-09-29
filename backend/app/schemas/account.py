@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -11,6 +11,10 @@ class AccountBase(BaseModel):
     type: str
     balance: Decimal
     currency: str = "USD"
+    secured_asset_id: Optional[uuid.UUID] = None
+    mortgage_type: Optional[Literal["annuity", "linear", "interest_only"]] = None
+    annual_interest_rate: Optional[Decimal] = None
+    maturity_date: Optional[date] = None
 
 
 class AccountCreate(BaseModel):
@@ -19,6 +23,10 @@ class AccountCreate(BaseModel):
     balance: Decimal = Decimal("0.00")
     balance_date: Optional[date] = None
     currency: str = "USD"
+    secured_asset_id: Optional[uuid.UUID] = None
+    mortgage_type: Optional[Literal["annuity", "linear", "interest_only"]] = None
+    annual_interest_rate: Optional[Decimal] = None
+    maturity_date: Optional[date] = None
     credit_limit: Optional[Decimal] = None
     statement_close_day: Optional[int] = None
     payment_due_day: Optional[int] = None
@@ -31,6 +39,10 @@ class AccountUpdate(BaseModel):
     name: Optional[str] = None
     display_name: Optional[str] = None
     type: Optional[str] = None
+    secured_asset_id: Optional[uuid.UUID] = None
+    mortgage_type: Optional[Literal["annuity", "linear", "interest_only"]] = None
+    annual_interest_rate: Optional[Decimal] = None
+    maturity_date: Optional[date] = None
     balance: Optional[Decimal] = None
     balance_date: Optional[date] = None
     credit_limit: Optional[Decimal] = None
