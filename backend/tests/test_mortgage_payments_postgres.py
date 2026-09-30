@@ -156,3 +156,58 @@ async def test_payment_edit_waits_for_a_breakdown_being_saved(
 
     assert response.status_code == 400
     assert "mortgage breakdown" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_bulk_category_waits_for_a_breakdown_being_saved(
+    client, auth_headers, session, postgres_sessions, test_user, test_workspace
+):
+    """Moving payments into an ignored category checks for breakdowns first; a
+    breakdown committed between that check and the update must still be seen."""
+    import asyncio
+    import uuid
+    from decimal import Decimal
+
+    from app.models.category import Category
+
+    payment, loan = await _make_payment_and_loan(
+        session, test_user, test_workspace, snapshot_date=date(2026, 5, 31)
+    )
+    ignored = Category(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        name="Ignored",
+        is_ignored=True,
+    )
+    session.add(ignored)
+    await session.commit()
+
+    async with postgres_sessions() as saving:
+        await saving.execute(
+            select(Transaction.id).where(Transaction.id == payment.id).with_for_update()
+        )
+        bulk = asyncio.create_task(
+            client.patch(
+                "/api/transactions/bulk-categorize",
+                headers=auth_headers,
+                json={"transaction_ids": [str(payment.id)], "category_id": str(ignored.id)},
+            )
+        )
+        await asyncio.sleep(0.5)
+        assert not bulk.done()
+
+        saving.add(
+            MortgagePaymentAllocation(
+                workspace_id=test_workspace.id,
+                payment_transaction_id=payment.id,
+                loan_account_id=loan.id,
+                principal_amount=Decimal("167.76"),
+                interest_amount=Decimal("65.07"),
+            )
+        )
+        await saving.commit()
+        response = await asyncio.wait_for(bulk, timeout=10)
+
+    assert response.status_code == 400
+    assert "mortgage breakdown" in response.json()["detail"]

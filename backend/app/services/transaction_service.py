@@ -1706,6 +1706,11 @@ async def bulk_update_category(
         Transaction.source != MORTGAGE_PRINCIPAL_SOURCE,
     ]
     if await _category_is_ignored(session, category_id):
+        # Take the row locks a breakdown save takes, in a fixed order, so a save
+        # that commits between the check and the update cannot be missed.
+        await session.execute(
+            select(Transaction.id).where(*target).order_by(Transaction.id).with_for_update()
+        )
         linked = await session.scalar(
             select(MortgagePaymentAllocation.id)
             .join(Transaction, Transaction.id == MortgagePaymentAllocation.payment_transaction_id)
