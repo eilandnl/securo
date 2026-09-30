@@ -114,3 +114,45 @@ async def test_concurrent_breakdown_saves_take_turns(
         )
         == 1
     )
+
+
+@pytest.mark.asyncio
+async def test_payment_edit_waits_for_a_breakdown_being_saved(
+    client, auth_headers, session, postgres_sessions, test_user, test_workspace
+):
+    """An edit that passed its breakdown check just before a save commits would
+    change the payment under a breakdown that no longer matches it. The edit
+    has to queue behind the save and then see the breakdown."""
+    import asyncio
+    from decimal import Decimal
+
+    payment, loan = await _make_payment_and_loan(
+        session, test_user, test_workspace, snapshot_date=date(2026, 5, 31)
+    )
+
+    async with postgres_sessions() as saving:
+        await saving.execute(
+            select(Transaction.id).where(Transaction.id == payment.id).with_for_update()
+        )
+        edit = asyncio.create_task(
+            client.patch(
+                f"/api/transactions/{payment.id}", headers=auth_headers, json={"amount": 999}
+            )
+        )
+        await asyncio.sleep(0.5)
+        assert not edit.done()
+
+        saving.add(
+            MortgagePaymentAllocation(
+                workspace_id=test_workspace.id,
+                payment_transaction_id=payment.id,
+                loan_account_id=loan.id,
+                principal_amount=Decimal("167.76"),
+                interest_amount=Decimal("65.07"),
+            )
+        )
+        await saving.commit()
+        response = await asyncio.wait_for(edit, timeout=10)
+
+    assert response.status_code == 400
+    assert "mortgage breakdown" in response.json()["detail"]
