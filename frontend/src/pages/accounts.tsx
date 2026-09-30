@@ -7,6 +7,7 @@ import { useDisplayLocale, useDateLocale } from '@/hooks/use-display-locale'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { accounts, assets, connections, currencies } from '@/lib/api'
+import { extractApiError } from '@/lib/api-errors'
 import { localDateString } from '@/lib/date-utils'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
@@ -173,7 +174,8 @@ export default function AccountsPage() {
       setDialogOpen(false)
       toast.success(t('accounts.created'))
     },
-    onError: () => toast.error(t('common.error')),
+    // The API says why a loan link is refused (e.g. the property was deleted).
+    onError: (err) => toast.error(extractApiError(err, t('common.error'))),
   })
 
   const updateMutation = useMutation({
@@ -185,7 +187,7 @@ export default function AccountsPage() {
       setEditingAccount(null)
       toast.success(t('accounts.updated'))
     },
-    onError: () => toast.error(t('common.error')),
+    onError: (err) => toast.error(extractApiError(err, t('common.error'))),
   })
 
   const deleteMutation = useMutation({
