@@ -57,7 +57,7 @@ def mask_last4(value: Optional[str]) -> Optional[str]:
 class AccountData:
     external_id: str
     name: str
-    type: str  # checking, savings, credit_card, loan
+    type: str  # checking, savings, credit_card
     balance: Decimal
     currency: str
     credit_limit: Optional[Decimal] = None

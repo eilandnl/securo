@@ -12,7 +12,6 @@ from app.models.account import Account
 from app.models.asset import Asset
 from app.models.bank_connection import BankConnection
 from app.models.credit_card_bill import CreditCardBill
-from app.models.mortgage_payment_allocation import MortgagePaymentAllocation
 from app.models.transaction import Transaction
 from app.schemas.account import AccountCreate, AccountUpdate
 from app.services._query_filters import (
@@ -23,7 +22,6 @@ from app.services._query_filters import (
     is_inside_provider_snapshot,
     is_not_future,
 )
-from app.services import mortgage_service
 from app.services.credit_card_service import apply_effective_date, compute_available_credit, get_cycle_dates
 from app.models.category import Category
 
@@ -32,13 +30,8 @@ def get_account_name(account: Account) -> str:
     return account.display_name or account.name
 
 
-# Account types whose balance is debt. Providers report their debt as a
-# positive number, while the signed transaction ledger represents it as negative.
-LIABILITY_ACCOUNT_TYPES = frozenset({"credit_card", "loan"})
-
-
-def _provider_to_internal_balance(provider: str, account_type: str, balance: Decimal) -> Decimal:
-    """Normalize a provider balance to Securo's positive-for-debt convention.
+def _simplefin_to_internal_balance(provider: str, account_type: str, balance: Decimal) -> Decimal:
+    """Normalize a SimpleFIN balance to Securo's positive-for-debt convention.
 
     SimpleFIN reports a credit card's balance as negative debt and exposes no
     account type, so the provider stores it raw and labels every account
@@ -46,13 +39,7 @@ def _provider_to_internal_balance(provider: str, account_type: str, balance: Dec
     the convention every downstream site (serialize_account, _account_balance_at,
     sync_opening_balance_for_connected_account, ...) assumes. Flip SimpleFIN card
     balances to match so those sites stay provider-agnostic.
-
-    Banks disagree on the sign of an outstanding loan, and a loan's balance is
-    always debt, so a loan (by the account's stored type, which reflects any
-    user override) stores its magnitude.
     """
-    if account_type == "loan":
-        return abs(balance)
     if provider == "simplefin" and account_type == "credit_card":
         return -balance
     return balance
@@ -60,7 +47,8 @@ def _provider_to_internal_balance(provider: str, account_type: str, balance: Dec
 
 def _opening_balance_values(account_type: str, balance: Decimal) -> tuple[Decimal, str]:
     amount = abs(balance)
-    is_credit = (balance > 0) == (account_type not in LIABILITY_ACCOUNT_TYPES)
+    # A loan is entered as the amount owed, like a card, and is debt in the ledger.
+    is_credit = (balance > 0) == (account_type not in {"credit_card", "loan"})
     return amount, "credit" if is_credit else "debit"
 
 
@@ -177,10 +165,10 @@ def serialize_account(
     previous_balance: Optional[Decimal],
     connection: Optional[BankConnection] = None,
 ) -> dict:
-    # Connected credit cards and loans: provider stores positive for debt → negate.
+    # Connected CC: provider stores positive for debt → negate.
     # Manual accounts: transaction math already gives correct sign.
     if acc.connection_id:
-        resolved_balance = float(acc.balance) * (-1 if acc.type in LIABILITY_ACCOUNT_TYPES else 1)
+        resolved_balance = float(acc.balance) * (-1 if acc.type == "credit_card" else 1)
     else:
         resolved_balance = float(current_balance or 0)
 
@@ -195,11 +183,6 @@ def serialize_account(
         "masked_number": acc.masked_number,
         "type": acc.type,
         "secured_asset_id": acc.secured_asset_id,
-        "mortgage_type": acc.mortgage_type,
-        "annual_interest_rate": (
-            float(acc.annual_interest_rate) if acc.annual_interest_rate is not None else None
-        ),
-        "maturity_date": acc.maturity_date,
         "balance": acc.balance,
         "currency": acc.currency,
         "current_balance": resolved_balance,
@@ -281,9 +264,7 @@ async def create_account(
     data: AccountCreate,
 ) -> Account:
     await _validate_secured_asset(session, workspace_id, data.type, data.secured_asset_id)
-    _validate_mortgage_details(data.type, data.mortgage_type, data.annual_interest_rate)
     is_cc = data.type == "credit_card"
-    is_loan = data.type == "loan"
     account = Account(
         user_id=user_id,
         workspace_id=workspace_id,
@@ -292,9 +273,6 @@ async def create_account(
         balance=data.balance,
         currency=data.currency,
         secured_asset_id=data.secured_asset_id,
-        mortgage_type=data.mortgage_type if is_loan else None,
-        annual_interest_rate=data.annual_interest_rate if is_loan else None,
-        maturity_date=data.maturity_date if is_loan else None,
         credit_limit=data.credit_limit if is_cc else None,
         statement_close_day=data.statement_close_day if is_cc else None,
         payment_due_day=data.payment_due_day if is_cc else None,
@@ -335,25 +313,18 @@ async def update_account(
 
     update_data = data.model_dump(exclude_unset=True)
     balance_date = update_data.pop("balance_date", None)
-    old_type = account.type
     new_type = update_data.get("type", account.type)
-    if old_type == "loan" and new_type != "loan" and await _has_mortgage_allocations(session, account):
-        # Saved payment splits post principal to this account as a loan; turning
-        # it into another type would leave those entries meaningless.
-        raise ValueError("Remove this loan's mortgage payment breakdowns before changing its type")
-    # Loan details already stored are dropped when the account stops being a
-    # loan (_clear_loan_fields), so only values sent with the edit are checked.
-    keeps_loan = new_type == "loan"
+    if account.connection_id is not None and new_type == "loan":
+        raise ValueError("Bank-connected accounts cannot be loans yet")
+    # The property link is dropped when the account stops being a loan, so only
+    # a link sent with this edit is checked.
     await _validate_secured_asset(
         session,
         workspace_id,
         new_type,
-        update_data.get("secured_asset_id", account.secured_asset_id if keeps_loan else None),
-    )
-    _validate_mortgage_details(
-        new_type,
-        update_data.get("mortgage_type", account.mortgage_type if keeps_loan else None),
-        update_data.get("annual_interest_rate", account.annual_interest_rate if keeps_loan else None),
+        update_data.get(
+            "secured_asset_id", account.secured_asset_id if new_type == "loan" else None
+        ),
     )
 
     # Track whether we need to recompute effective_date for all transactions.
@@ -374,10 +345,6 @@ async def update_account(
         editable_fields = {
             "display_name",
             "type",
-            "secured_asset_id",
-            "mortgage_type",
-            "annual_interest_rate",
-            "maturity_date",
             "credit_limit",
             "statement_close_day",
             "payment_due_day",
@@ -388,28 +355,23 @@ async def update_account(
         disallowed = set(update_data.keys()) - editable_fields
         if disallowed:
             raise ValueError("Cannot edit bank-connected accounts")
-        cc_fields = {
-            "credit_limit",
-            "statement_close_day",
-            "payment_due_day",
-            "minimum_payment",
-            "card_brand",
-            "card_level",
-        }
+        old_type = account.type
+        new_type = update_data.get("type", account.type)
+        cc_fields = editable_fields - {"display_name", "type"}
         cc_update = {k: v for k, v in update_data.items() if k in cc_fields}
         if cc_update and new_type != "credit_card":
             raise ValueError("Credit card fields can only be set on credit card accounts")
         for key, value in update_data.items():
             setattr(account, key, value)
-        # SimpleFIN stores a card's or loan's balance with the raw provider sign
-        # (negative for debt) under type="checking". When the user flips the type
-        # across the liability boundary, the downstream display sites start (or
-        # stop) applying the positive-for-debt negation, so the stored value must
-        # flip too — otherwise the debt double-counts. Mirror the ingestion-time
-        # normalization (_provider_to_internal_balance) here so the correction
+        # SimpleFIN stores a card's balance with the raw provider sign (negative
+        # for debt) under type="checking". When the user flips the type across
+        # the credit_card boundary, the downstream display sites start (or stop)
+        # applying the positive-for-debt negation, so the stored value must flip
+        # too — otherwise the card double-counts. Mirror the ingestion-time
+        # normalization (_simplefin_to_internal_balance) here so the correction
         # is immediate, not deferred to the next sync. Load the provider via
         # session.get (identity-map hit, never a lazy-load that throws).
-        if (old_type in LIABILITY_ACCOUNT_TYPES) != (new_type in LIABILITY_ACCOUNT_TYPES):
+        if old_type != new_type and "credit_card" in (old_type, new_type):
             conn = (
                 await session.get(BankConnection, account.connection_id)
                 if account.connection_id is not None
@@ -417,8 +379,6 @@ async def update_account(
             )
             if conn is not None and conn.provider == "simplefin":
                 account.balance = -account.balance
-        if new_type == "loan":
-            account.balance = _provider_to_internal_balance("", "loan", account.balance)
         # If the override moves the account away from credit_card, drop any
         # stale card metadata so it isn't left half credit-card.
         if new_type != "credit_card":
@@ -428,8 +388,6 @@ async def update_account(
             account.minimum_payment = None
             account.card_brand = None
             account.card_level = None
-        if new_type != "loan":
-            _clear_loan_fields(account)
         if cycle_fields_changed:
             await _recompute_effective_dates(session, account)
         await session.commit()
@@ -447,7 +405,7 @@ async def update_account(
         account.card_brand = None
         account.card_level = None
     if account.type != "loan":
-        _clear_loan_fields(account)
+        account.secured_asset_id = None
 
     # When balance changes, sync the opening_balance transaction
     if "balance" in update_data:
@@ -499,29 +457,9 @@ async def update_account(
     if cycle_fields_changed:
         await _recompute_effective_dates(session, account)
 
-    if account.type == "loan" and ("balance" in update_data or balance_date):
-        await session.flush()
-        await mortgage_service.resync_principal_entries(session, account)
-
     await session.commit()
     await session.refresh(account)
     return account
-
-
-async def _has_mortgage_allocations(session: AsyncSession, account: Account) -> bool:
-    linked = await session.scalar(
-        select(MortgagePaymentAllocation.id)
-        .where(MortgagePaymentAllocation.loan_account_id == account.id)
-        .limit(1)
-    )
-    return linked is not None
-
-
-def _clear_loan_fields(account: Account) -> None:
-    account.secured_asset_id = None
-    account.mortgage_type = None
-    account.annual_interest_rate = None
-    account.maturity_date = None
 
 
 async def _validate_secured_asset(
@@ -539,19 +477,6 @@ async def _validate_secured_asset(
     )
     if asset is None or asset.type != "real_estate":
         raise ValueError("Linked property must be real estate in the same workspace")
-
-
-def _validate_mortgage_details(
-    account_type: str,
-    mortgage_type: Optional[str],
-    annual_interest_rate: Optional[Decimal],
-) -> None:
-    if account_type != "loan" and (mortgage_type is not None or annual_interest_rate is not None):
-        raise ValueError("Mortgage details can only be set on loan accounts")
-    if annual_interest_rate is not None and not (
-        Decimal("0") <= Decimal(str(annual_interest_rate)) <= Decimal("100")
-    ):
-        raise ValueError("Annual interest rate must be between 0 and 100 percent")
 
 
 async def _recompute_effective_dates(session: AsyncSession, account: Account) -> None:
@@ -590,13 +515,13 @@ async def sync_opening_balance_for_connected_account(
     # is not part of the provider's current balance yet.
     balance_cutoff = app_today()
 
-    # For connected credit card and loan accounts the stored balance is positive
-    # debt and the UI displays it negated (account_service.serialize_account).
-    # The sum of signed transaction amounts trends negative as debt accrues, so
-    # the target we want SUM(signed txs) to hit is -balance. For every other
-    # account type the target is simply the stored balance.
-    is_liability = account.type in LIABILITY_ACCOUNT_TYPES
-    target = -account.balance if is_liability else account.balance
+    # For connected CC accounts the stored balance is positive debt and the UI
+    # displays it negated (account_service.serialize_account). The sum of signed
+    # transaction amounts on a CC trends negative as debt accrues, so the target
+    # we want SUM(signed txs) to hit is -balance. For every other account type
+    # the target is simply the stored balance.
+    is_cc = account.type == "credit_card"
+    target = -account.balance if is_cc else account.balance
 
     effective_amount = case(
         (Transaction.currency == account.currency, Transaction.amount),
@@ -693,8 +618,6 @@ async def delete_account(session: AsyncSession, account_id: uuid.UUID, workspace
     # Only allow deleting manual accounts
     if account.connection_id is not None:
         raise ValueError("Cannot delete bank-connected accounts")
-    if await _has_mortgage_allocations(session, account):
-        raise ValueError("Remove this loan's mortgage payment breakdowns before deleting it")
 
     # Clean up attachment files for all transactions in this account
     from app.services.attachment_service import cleanup_attachment_files
@@ -838,9 +761,9 @@ async def get_account_summary(
         )
         current_balance = float(balance_result.scalar() or 0)
 
-    # Connected CC/loan: provider balance is positive for debt → negate.
-    # Manual CC/loan: transaction math already gives negative for debt.
-    if account.type in LIABILITY_ACCOUNT_TYPES and account.connection_id:
+    # Connected CC: provider balance is positive for debt → negate.
+    # Manual CC: transaction math already gives negative for debt.
+    if account.type == "credit_card" and account.connection_id:
         current_balance = -current_balance
 
     # Bucketing date: for credit-card txs the user can override which cycle
@@ -1200,7 +1123,7 @@ async def get_account_balance_history(
     if not date_to:
         date_to = today
 
-    sign = -1.0 if (account.type in LIABILITY_ACCOUNT_TYPES and account.connection_id) else 1.0
+    sign = -1.0 if (account.type == "credit_card" and account.connection_id) else 1.0
 
     series = await _account_daily_balance_series(session, account_id, date_from, date_to, account.currency)
 

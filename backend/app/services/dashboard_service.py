@@ -1272,7 +1272,7 @@ async def _account_balance_at(
     if account.connection_id:
         # Start from the provider's authoritative current balance
         current_bal = float(account.balance)
-        if account.type in {"credit_card", "loan"}:
+        if account.type == "credit_card":
             current_bal = -current_bal
 
         # The provider number is the source of truth for the current balance,
@@ -1417,7 +1417,7 @@ async def _total_balance_by_currency(
     for account in accounts:
         if account.connection_id:
             bal = float(account.balance)
-            if account.type in {"credit_card", "loan"}:
+            if account.type == "credit_card":
                 bal = -bal
             if cutoff < today:
                 bal -= connected_deltas.get(account.id, 0.0)

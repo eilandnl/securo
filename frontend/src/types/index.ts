@@ -163,9 +163,6 @@ export interface Account {
   institution_logo_url: string | null
   type: string
   secured_asset_id?: string | null
-  mortgage_type?: 'annuity' | 'linear' | 'interest_only' | null
-  annual_interest_rate?: number | null
-  maturity_date?: string | null
   balance: number
   current_balance: number
   previous_balance: number | null
@@ -1610,7 +1607,7 @@ export interface ReconciliationConditions {
   /** Only pairs where one of the two legs sits on an account of this
    *  kind. Either leg is enough: a rule that exists to be careful about
    *  credit cards has to fire whichever end the card is on. */
-  account_types?: ('checking' | 'savings' | 'credit_card' | 'loan' | 'investment' | 'wallet')[]
+  account_types?: ('checking' | 'savings' | 'credit_card' | 'investment' | 'wallet')[]
   /** One side's statement text has to name the other side's account. The
    *  signal that tells two same-day transfers of the same amount apart,
    *  when one line reads "To FORTUNEO ACCOUNT" and the other does not. */

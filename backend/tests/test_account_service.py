@@ -24,7 +24,7 @@ from app.models.recurring_transaction import RecurringTransaction
 from app.models.transaction import Transaction
 from app.schemas.account import AccountCreate, AccountUpdate
 from app.services.account_service import (
-    _provider_to_internal_balance,
+    _simplefin_to_internal_balance,
     create_account,
     close_account,
     delete_account,
@@ -1185,26 +1185,26 @@ async def _make_provider_connection(
     return conn.id
 
 
-def test_provider_to_internal_balance_flips_card():
+def test_simplefin_to_internal_balance_flips_card():
     """SimpleFIN reports card debt as a negative number; normalize to positive."""
-    assert _provider_to_internal_balance(
+    assert _simplefin_to_internal_balance(
         "simplefin", "credit_card", Decimal("-500.00")
     ) == Decimal("500.00")
 
 
-def test_provider_to_internal_balance_checking_unchanged():
+def test_simplefin_to_internal_balance_checking_unchanged():
     """A SimpleFIN non-card balance is already in the right convention."""
-    assert _provider_to_internal_balance(
+    assert _simplefin_to_internal_balance(
         "simplefin", "checking", Decimal("1500.00")
     ) == Decimal("1500.00")
 
 
-def test_provider_to_internal_balance_other_provider_unchanged():
+def test_simplefin_to_internal_balance_other_provider_unchanged():
     """Pluggy/Enable already use positive-for-debt — never flip their cards."""
-    assert _provider_to_internal_balance(
+    assert _simplefin_to_internal_balance(
         "pluggy", "credit_card", Decimal("500.00")
     ) == Decimal("500.00")
-    assert _provider_to_internal_balance(
+    assert _simplefin_to_internal_balance(
         "enable_banking", "credit_card", Decimal("500.00")
     ) == Decimal("500.00")
 
@@ -1298,89 +1298,6 @@ async def test_update_simplefin_type_change_not_crossing_card_keeps_balance(
     assert updated is not None
     assert updated.type == "savings"
     assert updated.balance == Decimal("1500.00")
-
-
-def test_provider_to_internal_balance_flips_loan():
-    assert _provider_to_internal_balance(
-        "simplefin", "loan", Decimal("-250000.00")
-    ) == Decimal("250000.00")
-
-
-def test_provider_to_internal_balance_stores_any_loan_as_positive_debt():
-    for provider in ("enable_banking", "pluggy", "simplefin"):
-        assert _provider_to_internal_balance(
-            provider, "loan", Decimal("-250000.00")
-        ) == Decimal("250000.00")
-        assert _provider_to_internal_balance(
-            provider, "loan", Decimal("250000.00")
-        ) == Decimal("250000.00")
-
-
-def test_provider_to_internal_balance_keeps_checking_raw():
-    """A loan synced before loans existed is stored as checking; its balance
-    must keep the bank's sign so it still shows as debt, not flip to an asset."""
-    assert _provider_to_internal_balance(
-        "enable_banking", "checking", Decimal("-250000.00")
-    ) == Decimal("-250000.00")
-
-
-@pytest.mark.asyncio
-async def test_update_enable_banking_account_to_loan_stores_positive_debt(
-    session: AsyncSession, test_user, test_workspace,
-):
-    conn_id = await _make_provider_connection(session, test_user.id, "enable_banking")
-    account = await _make_account(
-        session, test_user.id, "EB Mortgage", acc_type="checking",
-        balance="-250000.00", connection_id=conn_id, external_id="eb-loan-1",
-    )
-
-    updated = await update_account(
-        session, account.id, test_workspace.id, AccountUpdate(type="loan")
-    )
-    assert updated is not None
-    assert updated.balance == Decimal("250000.00")
-    assert serialize_account(updated, None, None)["current_balance"] == pytest.approx(-250000.0)
-
-
-@pytest.mark.asyncio
-async def test_update_simplefin_account_to_loan_flips_balance(
-    session: AsyncSession, test_user, test_workspace,
-):
-    """A SimpleFIN mortgage arrives as negative debt under type="checking".
-    Overriding it to loan must store positive-for-debt, like a card, so the
-    loan still counts as a liability instead of an asset."""
-    conn_id = await _make_provider_connection(session, test_user.id, "simplefin")
-    account = await _make_account(
-        session, test_user.id, "SimpleFIN Mortgage", acc_type="checking",
-        balance="-250000.00", connection_id=conn_id, external_id="sf-loan-1",
-    )
-
-    updated = await update_account(
-        session, account.id, test_workspace.id, AccountUpdate(type="loan")
-    )
-    assert updated is not None
-    assert updated.type == "loan"
-    assert updated.balance == Decimal("250000.00")
-    payload = serialize_account(updated, None, None)
-    assert payload["current_balance"] == pytest.approx(-250000.0)
-
-
-@pytest.mark.asyncio
-async def test_update_simplefin_card_to_loan_keeps_balance(
-    session: AsyncSession, test_user, test_workspace,
-):
-    """Card → loan stays on the liability side, so the sign is already right."""
-    conn_id = await _make_provider_connection(session, test_user.id, "simplefin")
-    account = await _make_account(
-        session, test_user.id, "SimpleFIN Credit Line", acc_type="credit_card",
-        balance="500.00", connection_id=conn_id, external_id="sf-loan-2",
-    )
-
-    updated = await update_account(
-        session, account.id, test_workspace.id, AccountUpdate(type="loan")
-    )
-    assert updated is not None
-    assert updated.balance == Decimal("500.00")
 
 
 # ----- per-account institution resolution (issue #345) ------------------------

@@ -65,7 +65,7 @@ def _map_cash_account_type(eb_type: Optional[str]) -> str:
         "SVGS": "savings",
         "CARD": "credit_card",
         "CASH": "checking",
-        "LOAN": "loan",
+        "LOAN": "checking",  # we don't model loan accounts yet
         "OTHR": "checking",
     }
     return mapping.get(eb_type.upper(), "checking")
