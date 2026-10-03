@@ -1952,7 +1952,8 @@
     "total": "कुल",
     "confirmRegenerateTitle": "मूल्य दोबारा बनाएँ?",
     "confirmRegenerate": "वृद्धि पैरामीटर बदले। अपने आप बने सभी मूल्य हटा दिए जाएँगे और दोबारा गणना किए जाएँगे। मैन्युअल मूल्य रखे जाएँगे।",
-    "regenerate": "दोबारा बनाएँ"
+    "regenerate": "दोबारा बनाएँ",
+    "sourceContribution": "योगदान"
   },
   "reports": {
     "section": "एनालिटिक्स",

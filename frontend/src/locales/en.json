@@ -1952,7 +1952,8 @@
     "total": "Total",
     "confirmRegenerateTitle": "Regenerate values?",
     "confirmRegenerate": "Growth parameters changed. All automatically generated values will be deleted and recalculated. Manual values will be kept.",
-    "regenerate": "Regenerate"
+    "regenerate": "Regenerate",
+    "sourceContribution": "Contribution"
   },
   "reports": {
     "section": "Analytics",

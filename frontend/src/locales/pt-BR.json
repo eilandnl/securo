@@ -1953,7 +1953,8 @@
     "total": "Total",
     "confirmRegenerateTitle": "Regenerar valores?",
     "confirmRegenerate": "Os parâmetros de crescimento foram alterados. Todos os valores gerados automaticamente serão excluídos e recalculados. Valores manuais serão mantidos.",
-    "regenerate": "Regenerar"
+    "regenerate": "Regenerar",
+    "sourceContribution": "Contribuição"
   },
   "reports": {
     "section": "Análises",

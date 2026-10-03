@@ -1954,7 +1954,8 @@
     "total": "Totaal",
     "confirmRegenerateTitle": "Waarden opnieuw genereren?",
     "confirmRegenerate": "Groeiparameters veranderd. Alle automatisch gegenereerde waarden worden verwijderd en opnieuw berekend. Handmatige waarden blijven behouden.",
-    "regenerate": "Regenereer"
+    "regenerate": "Regenereer",
+    "sourceContribution": "Storting"
   },
   "reports": {
     "section": "Analyses",
