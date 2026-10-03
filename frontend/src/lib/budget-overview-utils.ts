@@ -43,7 +43,7 @@ export interface BudgetOverviewTotals {
   daysElapsed: number
   daysRemaining: number
   safeDaily: number
-  expectedAtPace: number
+  expectedAtPace: number | null
   paceDelta: number
 }
 
@@ -82,7 +82,7 @@ export function summarizeBudgetMonth(
   const daysElapsed = month < currentMonth ? monthDays : month > currentMonth ? 0 : now.getDate()
   const daysRemaining = Math.max(0, monthDays - daysElapsed)
   const remaining = budget - actual
-  const expectedAtPace = daysElapsed > 0 ? (actual / daysElapsed) * monthDays : projected
+  const expectedAtPace = daysElapsed > 0 ? (actual / daysElapsed) * monthDays : null
 
   return {
     budget,

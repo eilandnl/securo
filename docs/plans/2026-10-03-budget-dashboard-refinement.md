@@ -18,7 +18,7 @@
 
 **Step 1: Add failing tests for explicit month state and projection meanings**
 
-Use a fixed date in a month with a budget and one row whose `actual_amount` and `projected_amount` differ. Assert `projected` keeps the backend transaction-forecast total and `expectedAtPace` is the actual amount divided by elapsed days and multiplied by month length. Also assert the summary explicitly reports whether a positive budget exists and whether actual or projected activity exists.
+Use a fixed date in a month with a budget and one row whose `actual_amount` and `projected_amount` differ. Assert `projected` keeps the backend transaction-forecast total and `expectedAtPace` is the actual amount divided by elapsed days and multiplied by month length. For a future month with no elapsed days, assert there is no current-pace estimate. Also assert the summary explicitly reports whether a positive budget exists and whether actual or projected activity exists.
 
 **Step 2: Run the focused test and verify it fails for the missing assertion/behavior**
 
@@ -40,7 +40,7 @@ Run the same command. Expected: the missing explicit state flags fail the focuse
 
 **Step 5: Make the smallest helper change if a new regression is exposed**
 
-Return `hasBudget` and `hasActivity` from the existing utility alongside the current amounts. Keep projection arithmetic unchanged. Do not add prediction formulas or change backend data semantics.
+Return `hasBudget` and `hasActivity` from the existing utility alongside the current amounts. Return no current-pace estimate when the selected month has no elapsed days. Keep transaction projection arithmetic unchanged. Do not add prediction formulas or change backend data semantics.
 
 **Step 6: Run the focused test file**
 

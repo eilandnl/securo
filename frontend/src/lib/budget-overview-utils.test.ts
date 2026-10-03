@@ -78,6 +78,15 @@ describe('summarizeBudgetMonth', () => {
 
     expect(result.unbudgeted).toBe(20)
   })
+
+  it('does not invent a current-pace estimate for a future month', () => {
+    const result = summarizeBudgetMonth([
+      row({ budget_amount: 100, actual_amount: 0, projected_amount: 100 }),
+    ], '2026-11', new Date(2026, 9, 3))
+
+    expect(result.projected).toBe(100)
+    expect(result.expectedAtPace).toBeNull()
+  })
 })
 
 describe('normalizeBudgetComparisonRows', () => {
