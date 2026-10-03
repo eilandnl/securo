@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { normalizeBudgetComparisonRows } from '@/lib/budget-overview-utils'
+import { normalizeBudgetComparisonRows, normalizeBudgetForecast, type BudgetForecastData } from '@/lib/budget-overview-utils'
 import type { NumberFormat, DateFormat } from '@/lib/format'
 import type {
   User,
@@ -1232,7 +1232,8 @@ export const budgets = {
     const { data } = await api.post('/budgets', budget)
     return data
   },
-  update: async (id: string, budget: { amount?: number }): Promise<Budget> => {
+  /** For a recurring budget, `effective_month` starts a new amount from that month on and keeps earlier months as they were. */
+  update: async (id: string, budget: { amount?: number; effective_month?: string }): Promise<Budget> => {
     const { data } = await api.patch(`/budgets/${id}`, budget)
     return data
   },
@@ -1242,6 +1243,10 @@ export const budgets = {
   comparison: async (month?: string): Promise<BudgetVsActual[]> => {
     const { data } = await api.get('/budgets/comparison', { params: { month } })
     return normalizeBudgetComparisonRows(data)
+  },
+  forecast: async (month?: string): Promise<BudgetForecastData> => {
+    const { data } = await api.get('/budgets/forecast', { params: { month } })
+    return normalizeBudgetForecast(data)
   },
 }
 
