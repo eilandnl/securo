@@ -1,5 +1,10 @@
 import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
-import { getAccountName, sortAccountsByAbsoluteBalance, sumAccountBalances } from '@/lib/account-utils'
+import {
+  excludePropertySecuredLoans,
+  getAccountName,
+  sortAccountsByAbsoluteBalance,
+  sumAccountBalances,
+} from '@/lib/account-utils'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useDisplayLocale } from '@/hooks/use-display-locale'
@@ -192,9 +197,10 @@ export function AppLayout() {
   const allAccounts = accountsList ?? []
   // When a collection is active, the sidebar list + total reflect only its
   // accounts (issue #105). null = all accounts.
-  const visibleAccounts = activeAccountIds
+  const collectionAccounts = activeAccountIds
     ? allAccounts.filter((a) => activeAccountIds.includes(a.id))
     : allAccounts
+  const visibleAccounts = excludePropertySecuredLoans(collectionAccounts)
   const totalBalance = sumAccountBalances(visibleAccounts)
   const versionA11yLabel = t('app.versionAriaLabel', { version: APP_VERSION })
 
@@ -484,7 +490,7 @@ export function AppLayout() {
           </nav>
 
           {/* Account list in sidebar */}
-          {allAccounts.length > 0 && (
+          {visibleAccounts.length > 0 && (
             <div className={cn('px-3 pb-2 mt-2', desktopSidebarCollapsed && 'lg:hidden')}>
               <button
                 onClick={() => setAccountsExpanded(!accountsExpanded)}

@@ -73,17 +73,13 @@ class TransactionCreate(TransactionBase):
             and installment_purchase_date is not None
         ):
             if installment_number > total_installments:
-                raise ValueError(
-                    "installment_number must be between 1 and total_installments"
-                )
+                raise ValueError("installment_number must be between 1 and total_installments")
             if installment_total_amount <= 0:
                 raise ValueError("installment_total_amount must be positive")
             # The purchase date is the date of the first installment, so a
             # given installment can never predate it.
             if installment_purchase_date > self.date:
-                raise ValueError(
-                    "installment_purchase_date cannot be after the transaction date"
-                )
+                raise ValueError("installment_purchase_date cannot be after the transaction date")
         return self
 
 
@@ -101,6 +97,7 @@ class TransactionUpdate(BaseModel):
     fx_rate_used: Optional[Decimal] = None
     is_ignored: Optional[bool] = None
     exclude_from_pnl: Optional[bool] = None
+    asset_contribution_asset_id: Optional[uuid.UUID] = None
     # Manual status override (posted=settled, pending=not yet settled). Lets the
     # user mark a manually-entered transaction as settled once it clears,
     # or flip a synced row back to pending before the next sync.
@@ -130,7 +127,9 @@ class InstallmentSeriesCreate(BaseModel):
     # Period between installments. Defaults to monthly. Matches the
     # recurring-transaction frequencies so "repeat as installments" offers
     # the same cadence choices as a recurring bill.
-    frequency: Literal["monthly", "quarterly", "semiannual", "weekly", "biweekly", "yearly"] = "monthly"
+    frequency: Literal["monthly", "quarterly", "semiannual", "weekly", "biweekly", "yearly"] = (
+        "monthly"
+    )
 
     @model_validator(mode="after")
     def validate_amounts(self):
@@ -187,6 +186,7 @@ class TransactionRead(TransactionBase):
     bill_id: Optional[uuid.UUID] = None
     effective_bill_date: Optional[_Date] = None
     recurring_transaction_id: Optional[uuid.UUID] = None
+    asset_contribution_asset_id: Optional[uuid.UUID] = None
     splits: list[TransactionSplitRead] = []
     # Shared-transaction view fields. Set per-request when the viewer
     # is a linked member of one of this transaction's splits but not
@@ -259,6 +259,7 @@ class CreateCounterpartRequest(BaseModel):
     """Mark a transaction as a transfer by auto-creating its counterpart in
     another account. Used when the counterpart account is manual, so no
     matching transaction exists to link against."""
+
     to_account_id: uuid.UUID
 
 
@@ -275,6 +276,7 @@ class TransferRead(BaseModel):
 
 class TransactionImport(TransactionBase):
     """TransactionBase extended with import-only fields not exposed in read responses."""
+
     category_name: Optional[str] = None
     suggested_category_id: Optional[uuid.UUID] = None
     suggested_category_name: Optional[str] = None

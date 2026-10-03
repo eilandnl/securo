@@ -23,6 +23,16 @@ export function sumAccountBalances(
 }
 
 /**
+ * Mortgages secured against property contribute to net worth, but they are not
+ * available cash. Keep them out of the compact account overview only.
+ */
+export function excludePropertySecuredLoans<T extends Pick<Account, 'type' | 'secured_asset_id'>>(
+  accounts: readonly T[],
+): T[] {
+  return accounts.filter((account) => !(account.type === 'loan' && account.secured_asset_id))
+}
+
+/**
  * Return a presentation-only copy ordered by the name users see.
  * The input is never mutated, which keeps React Query's cached account list intact.
  */

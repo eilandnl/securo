@@ -3,7 +3,17 @@ from datetime import date as _date, datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, cast
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, JSON, Numeric, SmallInteger, String, event
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    JSON,
+    Numeric,
+    SmallInteger,
+    String,
+    event,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,9 +38,15 @@ class Transaction(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
-    account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False)
-    category_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True)
-    external_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Provider's transaction ID
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False
+    )
+    category_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True
+    )
+    external_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )  # Provider's transaction ID
     description: Mapped[str] = mapped_column(String(500))
     original_description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     description_is_rule_managed: Mapped[bool] = mapped_column(
@@ -48,10 +64,14 @@ class Transaction(Base):
     source: Mapped[str] = mapped_column(String(20))  # sync, ofx, csv, manual
     status: Mapped[str] = mapped_column(String(10), default="posted")  # posted, pending
     payee: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    payee_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("payees.id", ondelete="SET NULL"), nullable=True)
+    payee_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payees.id", ondelete="SET NULL"), nullable=True
+    )
     notes: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     raw_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    import_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("import_logs.id"), nullable=True)
+    import_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("import_logs.id"), nullable=True
+    )
     transfer_pair_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     # True on both legs of a cross-currency transfer whose destination amount
     # the user typed in, instead of letting it be converted at the market rate.
@@ -60,8 +80,12 @@ class Transaction(Base):
     transfer_amount_explicit: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false"
     )
-    amount_primary: Mapped[Optional[Decimal]] = mapped_column(Numeric(precision=15, scale=2), nullable=True)
-    fx_rate_used: Mapped[Optional[Decimal]] = mapped_column(Numeric(precision=20, scale=10), nullable=True)
+    amount_primary: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(precision=15, scale=2), nullable=True
+    )
+    fx_rate_used: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(precision=20, scale=10), nullable=True
+    )
     # Installment (parcelamento) metadata. Populated from provider data when available.
     # `installment_number` is 1-indexed (e.g. 3 for "3/12"). Storing alongside the
     # raw tx row so the door stays open to a plan view or manual entry later
@@ -102,9 +126,7 @@ class Transaction(Base):
     # reports. This differs from is_ignored, which also removes the row from
     # balance calculations. Balance adjustments use this distinction so the
     # reconciled balance stays exact without looking like income or spending.
-    exclude_from_pnl: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false"
-    )
+    exclude_from_pnl: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     # Link to the recurring bill this transaction fulfills (issue #116). Set when
     # a synced/imported/manual charge is matched to a recurring bill, or stamped
     # onto the placeholder generate_pending materializes. ON DELETE SET NULL: if
@@ -115,7 +137,17 @@ class Transaction(Base):
         nullable=True,
         index=True,
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    # Optional link from an outgoing bank payment to the investment position
+    # it funds. The amount/date remain owned by the bank transaction.
+    asset_contribution_asset_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("assets.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     account: Mapped["Account"] = relationship(back_populates="transactions")
     category: Mapped[Optional["Category"]] = relationship()
