@@ -38,8 +38,10 @@ describe('summarizeBudgetMonth', () => {
 
     expect(result).toMatchObject({
       budget: 200,
+      hasBudget: true,
       actual: 100,
       projected: 135,
+      hasActivity: true,
       unbudgeted: 10,
       remaining: 100,
       daysElapsed: 3,
@@ -58,8 +60,14 @@ describe('summarizeBudgetMonth', () => {
 
     const noBudget = summarizeBudgetMonth([row({ budget_amount: null, actual_amount: 25 })], '2026-10', new Date(2026, 9, 3))
     expect(noBudget.budget).toBe(0)
+    expect(noBudget.hasBudget).toBe(false)
+    expect(noBudget.hasActivity).toBe(true)
     expect(noBudget.safeDaily).toBe(0)
     expect(noBudget.unbudgeted).toBe(25)
+
+    const empty = summarizeBudgetMonth([], '2026-10', new Date(2026, 9, 3))
+    expect(empty.hasBudget).toBe(false)
+    expect(empty.hasActivity).toBe(false)
   })
 
   it('counts zero-limit categories as unbudgeted spending', () => {

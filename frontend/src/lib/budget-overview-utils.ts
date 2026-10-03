@@ -34,8 +34,10 @@ export function normalizeBudgetComparisonRows(rows: BudgetVsActualApiRow[]): Bud
 
 export interface BudgetOverviewTotals {
   budget: number
+  hasBudget: boolean
   actual: number
   projected: number
+  hasActivity: boolean
   remaining: number
   unbudgeted: number
   daysElapsed: number
@@ -84,8 +86,10 @@ export function summarizeBudgetMonth(
 
   return {
     budget,
+    hasBudget: budget > 0,
     actual,
     projected,
+    hasActivity: actual !== 0 || projected !== 0,
     remaining,
     unbudgeted,
     daysElapsed,
