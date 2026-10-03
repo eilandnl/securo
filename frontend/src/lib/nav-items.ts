@@ -42,8 +42,9 @@ export const navItems: NavItem[] = [
   { type: 'separator', labelKey: 'nav.groupAnalysis' },
   { type: 'link', key: 'reports', path: '/reports', icon: BarChart3, module: 'reports' },
   { type: 'link', key: 'assets', path: '/assets', icon: Landmark, module: 'assets' },
+  { type: 'link', key: 'budget', path: '/budget', icon: PiggyBank, module: 'budgets' },
   { type: 'separator', labelKey: 'nav.groupSetup' },
-  { type: 'link', key: 'budgets', path: '/budgets', icon: PiggyBank, module: 'budgets' },
+  { type: 'link', key: 'budgetSettings', path: '/budgets', icon: SlidersHorizontal, module: 'budgets' },
   { type: 'link', key: 'goals', path: '/goals', icon: Target, module: 'goals' },
   { type: 'link', key: 'recurring', path: '/recurring', icon: Repeat, module: 'recurring' },
   { type: 'link', key: 'categories', path: '/categories', icon: Tag, module: 'categories' },
@@ -69,4 +70,11 @@ export function visibleNavItems(
     const next = kept[index + 1]
     return next !== undefined && next.type === 'link'
   })
+}
+
+/** Match a route to a sidebar link without treating similarly prefixed paths as the same page. */
+export function isNavItemActive(pathname: string, itemPath: string): boolean {
+  return itemPath === '/'
+    ? pathname === '/'
+    : pathname === itemPath || pathname.startsWith(`${itemPath}/`)
 }
