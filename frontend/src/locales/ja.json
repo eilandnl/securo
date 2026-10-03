@@ -1955,7 +1955,8 @@
     "total": "合計",
     "confirmRegenerateTitle": "価値を再生成しますか?",
     "confirmRegenerate": "増加パラメータが変更されました。自動生成されたすべての価値が削除され再計算されます。手動入力の価値は保持されます。",
-    "regenerate": "再生成"
+    "regenerate": "再生成",
+    "sourceContribution": "積立"
   },
   "reports": {
     "section": "分析",

@@ -1959,7 +1959,8 @@
     "total": "Total",
     "confirmRegenerateTitle": "Régénérer les valeurs ?",
     "confirmRegenerate": "Les paramètres de croissance ont changé. Toutes les valeurs générées automatiquement seront supprimées et recalculées. Les valeurs manuelles seront conservées.",
-    "regenerate": "Régénérer"
+    "regenerate": "Régénérer",
+    "sourceContribution": "Versement"
   },
   "reports": {
     "section": "Analyses",

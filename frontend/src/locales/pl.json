@@ -2044,7 +2044,8 @@
     "total": "Łącznie",
     "confirmRegenerateTitle": "Przeliczyć wartości ponownie?",
     "confirmRegenerate": "Zmieniono parametry wzrostu. Wszystkie automatycznie wygenerowane wartości zostaną usunięte i przeliczone ponownie. Wartości ręczne zostaną zachowane.",
-    "regenerate": "Przelicz ponownie"
+    "regenerate": "Przelicz ponownie",
+    "sourceContribution": "Wpłata"
   },
   "reports": {
     "section": "Analityka",

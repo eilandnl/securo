@@ -2071,7 +2071,8 @@
     "total": "Spolu",
     "confirmRegenerateTitle": "Prepočítať hodnoty?",
     "confirmRegenerate": "Parametre rastu sa zmenili. Všetky automaticky vygenerované hodnoty sa vymažú a prepočítajú. Manuálne hodnoty zostanú zachované.",
-    "regenerate": "Prepočítať"
+    "regenerate": "Prepočítať",
+    "sourceContribution": "Príspevok"
   },
   "reports": {
     "section": "Analytika",
