@@ -1382,6 +1382,9 @@
     "darkMode": "Tryb ciemny"
   },
   "budgets": {
+    "averageLastThreeMonths": "Średnia z 3 miesięcy: {{amount}}",
+    "useAverage": "Użyj średniej",
+    "noAverageAvailable": "Brak dostępnej średniej wydatków dla tej kategorii.",
     "title": "Budżety",
     "add": "Dodaj budżet",
     "edit": "Edytuj budżet",
@@ -2969,6 +2972,11 @@
     }
   },
   "budgetOverview": {
+    "noBudgetForMonth": "Brak budżetu na {{month}}",
+    "createBudgetPrompt": "Dodaj budżety kategorii, aby śledzić wydatki w tym miesiącu.",
+    "viewTransactionsFor": "Pokaż transakcje dla {{category}}",
+    "previousMonth": "Poprzedni miesiąc",
+    "previousMonthSummary": "{{month}}: wydano {{spent}} z {{budget}} · pozostało {{remaining}}",
     "totalBudget": "Total budget",
     "remaining": "Budget remaining",
     "spent": "Spent so far",

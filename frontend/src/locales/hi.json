@@ -1333,6 +1333,9 @@
     "darkMode": "डार्क मोड"
   },
   "budgets": {
+    "averageLastThreeMonths": "पिछले 3 महीनों का औसत: {{amount}}",
+    "useAverage": "औसत इस्तेमाल करें",
+    "noAverageAvailable": "इस श्रेणी के लिए खर्च का औसत उपलब्ध नहीं है।",
     "title": "बजट",
     "add": "बजट जोड़ें",
     "edit": "बजट संपादित करें",
@@ -2861,6 +2864,11 @@
     }
   },
   "budgetOverview": {
+    "noBudgetForMonth": "{{month}} के लिए कोई बजट नहीं",
+    "createBudgetPrompt": "इस महीने के खर्च पर नज़र रखने के लिए श्रेणी बजट जोड़ें।",
+    "viewTransactionsFor": "{{category}} के लेन-देन देखें",
+    "previousMonth": "पिछला महीना",
+    "previousMonthSummary": "{{month}}: {{budget}} में से {{spent}} खर्च · {{remaining}} बाकी",
     "totalBudget": "Total budget",
     "remaining": "Budget remaining",
     "spent": "Spent so far",

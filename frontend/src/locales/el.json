@@ -1333,6 +1333,9 @@
     "clearGroupFilter": "Κατάργηση φίλτρου ομάδας"
   },
   "budgets": {
+    "averageLastThreeMonths": "Μέσος όρος 3 μηνών: {{amount}}",
+    "useAverage": "Χρήση μέσου όρου",
+    "noAverageAvailable": "Δεν υπάρχει διαθέσιμος μέσος όρος δαπανών για αυτή την κατηγορία.",
     "title": "Προϋπολογισμοί",
     "add": "Προσθήκη προϋπολογισμού",
     "edit": "Επεξεργασία προϋπολογισμού",
@@ -2861,6 +2864,11 @@
     }
   },
   "budgetOverview": {
+    "noBudgetForMonth": "Δεν έχει οριστεί προϋπολογισμός για τον {{month}}",
+    "createBudgetPrompt": "Ορίστε προϋπολογισμούς κατηγοριών για να παρακολουθείτε τις δαπάνες αυτού του μήνα.",
+    "viewTransactionsFor": "Προβολή συναλλαγών για {{category}}",
+    "previousMonth": "Προηγούμενος μήνας",
+    "previousMonthSummary": "{{month}}: {{spent}} δαπανήθηκαν από {{budget}} · απομένουν {{remaining}}",
     "totalBudget": "Total budget",
     "remaining": "Budget remaining",
     "spent": "Spent so far",

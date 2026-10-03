@@ -1334,6 +1334,9 @@
     "darkMode": "Dunkler Modus"
   },
   "budgets": {
+    "averageLastThreeMonths": "Durchschnitt der letzten 3 Monate: {{amount}}",
+    "useAverage": "Durchschnitt verwenden",
+    "noAverageAvailable": "Für diese Kategorie ist kein Ausgabendurchschnitt verfügbar.",
     "title": "Budgets",
     "add": "Budget hinzufügen",
     "edit": "Budget bearbeiten",
@@ -2862,6 +2865,11 @@
     }
   },
   "budgetOverview": {
+    "noBudgetForMonth": "Kein Budget für {{month}} festgelegt",
+    "createBudgetPrompt": "Lege Kategorienbudgets fest, um deine Ausgaben diesen Monat zu verfolgen.",
+    "viewTransactionsFor": "Transaktionen für {{category}} ansehen",
+    "previousMonth": "Vormonat",
+    "previousMonthSummary": "{{month}}: {{spent}} ausgegeben von {{budget}} · {{remaining}} übrig",
     "totalBudget": "Total budget",
     "remaining": "Budget remaining",
     "spent": "Spent so far",

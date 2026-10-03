@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useDisplayLocale } from '@/hooks/use-display-locale'
-import { monthLabel } from '@/lib/month-utils'
+import { monthLabel, shiftMonth } from '@/lib/month-utils'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { categories as categoriesApi, categoryGroups as groupsApi, budgets as budgetsApi } from '@/lib/api'
 import { extractApiError } from '@/lib/api-errors'
@@ -28,14 +28,12 @@ import { CategoryIcon } from '@/components/category-icon'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useAuth } from '@/contexts/auth-context'
 import { useWorkspace } from '@/contexts/workspace-context'
+import { useEffectiveTimezone } from '@/hooks/use-timezone'
 import { resolveDateFnsLocale } from '@/lib/date-fns-locale'
 import { findCategoryReference } from '@/lib/category-reference-utils'
+import { averageActualForCategory } from '@/lib/budget-overview-utils'
+import { todayInTimezone } from '@/lib/date-utils'
 import { formatCurrency } from '@/lib/format'
-
-function currentMonth() {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
 
 const TH = 'text-xs font-medium text-muted-foreground py-3'
 
@@ -60,15 +58,25 @@ export default function BudgetsPage() {
   const { mask } = usePrivacyMode()
   const { user } = useAuth()
   const { canWrite } = useWorkspace()
+  const timeZone = useEffectiveTimezone()
+  const today = todayInTimezone(timeZone)
+  const [searchParams] = useSearchParams()
+  const requestedMonth = searchParams.get('month')
+  const validRequestedMonth = requestedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth)
+    ? requestedMonth
+    : null
   const userCurrency = user?.preferences?.currency_display ?? 'USD'
   const locale = useDisplayLocale()
   const queryClient = useQueryClient()
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
+  const [monthOverride, setMonthOverride] = useState<string | null>(() => validRequestedMonth)
+  const selectedMonth = monthOverride ?? today.slice(0, 7)
   const [monthCalOpen, setMonthCalOpen] = useState(false)
   const dateFnsLocale = resolveDateFnsLocale(i18n.resolvedLanguage ?? i18n.language)
   const monthParam = `${selectedMonth}-01`
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Budget | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState('')
+  const [amountDraft, setAmountDraft] = useState('')
   const [deletingBudget, setDeletingBudget] = useState<Budget | null>(null)
 
   const { data: budgetsList } = useQuery({
@@ -92,6 +100,23 @@ export default function BudgetsPage() {
     queryKey: ['category-groups'],
     queryFn: groupsApi.list,
   })
+
+  const suggestionMonths = useMemo(
+    () => [-1, -2, -3].map((offset) => `${shiftMonth(selectedMonth, offset)}-01`),
+    [selectedMonth],
+  )
+  const { data: suggestionComparisons, isLoading: suggestionsLoading } = useQuery({
+    queryKey: ['budgets', 'three-month-average', selectedMonth],
+    queryFn: () => Promise.all(suggestionMonths.map((month) => budgetsApi.comparison(month))),
+    enabled: dialogOpen && !editing,
+    staleTime: 5 * 60 * 1000,
+  })
+  const suggestedAmount = useMemo(
+    () => selectedCategoryId && suggestionComparisons
+      ? averageActualForCategory(suggestionComparisons, selectedCategoryId)
+      : 0,
+    [selectedCategoryId, suggestionComparisons],
+  )
 
   const createMutation = useMutation({
     mutationFn: (data: { category_id: string; amount: number; month: string; is_recurring?: boolean }) =>
@@ -130,6 +155,13 @@ export default function BudgetsPage() {
 
   const displayCategories = allCategoriesList ?? categoriesList ?? []
 
+  const closeBudgetDialog = () => {
+    setDialogOpen(false)
+    setEditing(null)
+    setSelectedCategoryId('')
+    setAmountDraft('')
+  }
+
   const getCategoryDisplay = (categoryId: string) => {
     const category = findCategoryReference(displayCategories, categoryId)
     if (!category) return <span>{categoryId}</span>
@@ -154,9 +186,7 @@ export default function BudgetsPage() {
             <button
               className="h-8 w-8 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all text-base"
               onClick={() => {
-                const [y, m] = selectedMonth.split('-').map(Number)
-                const d = new Date(y, m - 2, 1)
-                setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+                setMonthOverride((value) => shiftMonth(value ?? selectedMonth, -1))
               }}
             >‹</button>
             <Popover open={monthCalOpen} onOpenChange={setMonthCalOpen}>
@@ -175,7 +205,7 @@ export default function BudgetsPage() {
                   selectedMonth={new Date(`${selectedMonth}-01T00:00:00`)}
                   onMonthSelect={(date) => {
                     if (!date) return
-                    setSelectedMonth(format(date, 'yyyy-MM'))
+                    setMonthOverride(format(date, 'yyyy-MM'))
                     setMonthCalOpen(false)
                   }}
                 />
@@ -184,13 +214,11 @@ export default function BudgetsPage() {
             <button
               className="h-8 w-8 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all text-base"
               onClick={() => {
-                const [y, m] = selectedMonth.split('-').map(Number)
-                const d = new Date(y, m, 1)
-                setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+                setMonthOverride((value) => shiftMonth(value ?? selectedMonth, 1))
               }}
             >›</button>
             <Button asChild variant="outline" size="sm" className="ml-2 gap-1.5">
-              <Link to="/budget"><PiggyBank size={14} />{t('nav.budget')}</Link>
+              <Link to={`/budget?month=${selectedMonth}`}><PiggyBank size={14} />{t('nav.budget')}</Link>
             </Button>
           </div>
         }
@@ -201,7 +229,7 @@ export default function BudgetsPage() {
           title={t('budgets.settingsTitle')}
           action={
             canWrite ? (
-              <Button size="sm" className="gap-1.5 h-8" onClick={() => { setEditing(null); setDialogOpen(true) }}>
+              <Button size="sm" className="gap-1.5 h-8" onClick={() => { setEditing(null); setSelectedCategoryId(''); setAmountDraft(''); setDialogOpen(true) }}>
                 <Plus size={13} /> {t('budgets.add')}
               </Button>
             ) : undefined
@@ -235,7 +263,7 @@ export default function BudgetsPage() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-                          onClick={() => { setEditing(budget); setDialogOpen(true) }}
+                          onClick={() => { setEditing(budget); setSelectedCategoryId(budget.category_id); setAmountDraft(budget.amount.toString()); setDialogOpen(true) }}
                           aria-label={t('common.edit')}
                           title={t('common.edit')}
                         >
@@ -262,7 +290,7 @@ export default function BudgetsPage() {
         )}
       </SectionCard>
 
-      <Dialog open={dialogOpen} onOpenChange={() => { setDialogOpen(false); setEditing(null) }}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (open) setDialogOpen(true); else closeBudgetDialog() }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? t('budgets.edit') : t('budgets.add')}</DialogTitle>
@@ -271,17 +299,17 @@ export default function BudgetsPage() {
             key={editing?.id ?? 'new'}
             onSubmit={(e) => {
               e.preventDefault()
-              const formData = new FormData(e.currentTarget)
               if (editing) {
                 updateMutation.mutate({
                   id: editing.id,
-                  amount: parseFloat(formData.get('amount') as string),
+                  amount: Number(amountDraft),
                 })
               } else {
+                const formData = new FormData(e.currentTarget)
                 const isRecurring = formData.get('is_recurring') === 'on'
                 createMutation.mutate({
-                  category_id: formData.get('category_id') as string,
-                  amount: parseFloat(formData.get('amount') as string),
+                  category_id: selectedCategoryId,
+                  amount: Number(amountDraft),
                   month: monthParam,
                   is_recurring: isRecurring,
                 })
@@ -295,6 +323,8 @@ export default function BudgetsPage() {
                   <Label>{t('budgets.category')}</Label>
                   <select
                     name="category_id"
+                    value={selectedCategoryId}
+                    onChange={(event) => setSelectedCategoryId(event.target.value)}
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   >
@@ -322,13 +352,29 @@ export default function BudgetsPage() {
               <Input
                 name="amount"
                 type="number"
+                min="0"
                 step="0.01"
-                defaultValue={editing?.amount?.toString() ?? ''}
+                value={amountDraft}
+                onChange={(event) => setAmountDraft(event.target.value)}
                 required
               />
             </div>
+            {!editing && selectedCategoryId && (
+              <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+                {suggestionsLoading ? (
+                  <p className="text-xs text-muted-foreground">{t('common.loading')}</p>
+                ) : suggestedAmount > 0 ? (
+                  <Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-start px-1 py-0.5 text-left" onClick={() => setAmountDraft(suggestedAmount.toFixed(2))}>
+                    {t('budgets.averageLastThreeMonths', { amount: mask(formatCurrency(suggestedAmount, userCurrency, locale)) })}
+                    <span className="ml-auto text-primary">{t('budgets.useAverage')}</span>
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t('budgets.noAverageAvailable')}</p>
+                )}
+              </div>
+            )}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditing(null) }}>
+              <Button type="button" variant="outline" onClick={closeBudgetDialog}>
                 {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>

@@ -1397,6 +1397,9 @@
     "darkMode": "Tmavý režim"
   },
   "budgets": {
+    "averageLastThreeMonths": "Priemer za 3 mesiace: {{amount}}",
+    "useAverage": "Použiť priemer",
+    "noAverageAvailable": "Priemer výdavkov pre túto kategóriu nie je k dispozícii.",
     "title": "Rozpočty",
     "add": "Pridať rozpočet",
     "edit": "Upraviť rozpočet",
@@ -3003,6 +3006,11 @@
     }
   },
   "budgetOverview": {
+    "noBudgetForMonth": "Pre {{month}} nie je nastavený rozpočet",
+    "createBudgetPrompt": "Nastavte rozpočty kategórií a sledujte výdavky za tento mesiac.",
+    "viewTransactionsFor": "Zobraziť transakcie pre {{category}}",
+    "previousMonth": "Predchádzajúci mesiac",
+    "previousMonthSummary": "{{month}}: minutých {{spent}} z {{budget}} · zostáva {{remaining}}",
     "totalBudget": "Total budget",
     "remaining": "Budget remaining",
     "spent": "Spent so far",

@@ -1346,6 +1346,9 @@
     "darkMode": "Тёмный режим"
   },
   "budgets": {
+    "averageLastThreeMonths": "Среднее за 3 месяца: {{amount}}",
+    "useAverage": "Использовать среднее",
+    "noAverageAvailable": "Среднее значение расходов для этой категории недоступно.",
     "title": "Бюджеты",
     "add": "Добавить бюджет",
     "edit": "Редактировать бюджет",
@@ -2876,6 +2879,11 @@
     }
   },
   "budgetOverview": {
+    "noBudgetForMonth": "На {{month}} бюджет не задан",
+    "createBudgetPrompt": "Добавьте бюджеты по категориям, чтобы отслеживать расходы в этом месяце.",
+    "viewTransactionsFor": "Показать транзакции категории «{{category}}»",
+    "previousMonth": "Предыдущий месяц",
+    "previousMonthSummary": "{{month}}: потрачено {{spent}} из {{budget}} · осталось {{remaining}}",
     "totalBudget": "Total budget",
     "remaining": "Budget remaining",
     "spent": "Spent so far",

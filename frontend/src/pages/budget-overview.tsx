@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowDownRight, ArrowUpRight, CalendarIcon, ChevronLeft, ChevronRight, Settings2 } from 'lucide-react'
+import { AlertCircle, ArrowDownRight, ArrowUpRight, CalendarIcon, ChevronLeft, ChevronRight, Settings2 } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -22,11 +22,23 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useDisplayLocale } from '@/hooks/use-display-locale'
+import { useEffectiveTimezone } from '@/hooks/use-timezone'
 import { budgets, transactions } from '@/lib/api'
-import { buildBudgetPaceSeries, sortBudgetCategories, summarizeBudgetMonth } from '@/lib/budget-overview-utils'
+import { buildBudgetPaceSeries, sortBudgetCategories, summarizeBudgetHistory, summarizeBudgetMonth } from '@/lib/budget-overview-utils'
+import { extractApiError } from '@/lib/api-errors'
+import { todayInTimezone } from '@/lib/date-utils'
 import { resolveDateFnsLocale } from '@/lib/date-fns-locale'
 import { formatCurrency } from '@/lib/format'
-import { currentMonth, monthLabel, shiftMonth } from '@/lib/month-utils'
+import { monthLabel, monthRange, shiftMonth } from '@/lib/month-utils'
+
+function compactCurrency(amount: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(amount)
+}
 
 function MetricCard({ label, value, note, accent = false }: {
   label: string
@@ -60,23 +72,47 @@ export default function BudgetOverviewPage() {
   const { user } = useAuth()
   const { mask } = usePrivacyMode()
   const locale = useDisplayLocale()
+  const timeZone = useEffectiveTimezone()
+  const today = todayInTimezone(timeZone)
+  const todayDate = useMemo(() => new Date(`${today}T12:00:00`), [today])
+  const [searchParams] = useSearchParams()
+  const requestedMonth = searchParams.get('month')
+  const validRequestedMonth = requestedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth)
+    ? requestedMonth
+    : null
   const currency = user?.preferences?.currency_display ?? 'USD'
-  const [month, setMonth] = useState(currentMonth)
+  const [monthOverride, setMonthOverride] = useState<string | null>(() => validRequestedMonth)
+  const month = monthOverride ?? today.slice(0, 7)
   const [monthPickerOpen, setMonthPickerOpen] = useState(false)
   const monthParam = `${month}-01`
   const dateFnsLocale = resolveDateFnsLocale(i18n.resolvedLanguage ?? i18n.language)
   const monthTitle = monthLabel(month, i18n.resolvedLanguage ?? i18n.language)
     .replace(/^\p{L}/u, (letter) => letter.toLocaleUpperCase(i18n.resolvedLanguage ?? i18n.language))
 
-  const { data: comparison, isLoading: comparisonLoading } = useQuery({
+  const {
+    data: comparison,
+    isLoading: comparisonLoading,
+    error: comparisonErrorValue,
+    refetch: refetchComparison,
+  } = useQuery({
     queryKey: ['budgets', 'comparison', month],
     queryFn: () => budgets.comparison(monthParam),
   })
-  const { data: calendar, isLoading: calendarLoading } = useQuery({
+  const {
+    data: calendar,
+    isLoading: calendarLoading,
+    error: calendarErrorValue,
+    refetch: refetchCalendar,
+  } = useQuery({
     queryKey: ['transactions', 'calendar', month],
     queryFn: () => transactions.calendar({ month: monthParam }),
   })
-  const { data: history } = useQuery({
+  const {
+    data: history,
+    isLoading: historyLoading,
+    isError: historyError,
+    refetch: refetchHistory,
+  } = useQuery({
     queryKey: ['budgets', 'history', month],
     queryFn: async () => Promise.all(
       Array.from({ length: 6 }, (_, index) => shiftMonth(month, -(index + 1)))
@@ -85,19 +121,24 @@ export default function BudgetOverviewPage() {
   })
 
   const rows = useMemo(() => comparison ?? [], [comparison])
-  const totals = useMemo(() => summarizeBudgetMonth(rows, month), [rows, month])
+  const totals = useMemo(() => summarizeBudgetMonth(rows, month, todayDate), [rows, month, todayDate])
   const sortedRows = useMemo(() => sortBudgetCategories(rows), [rows])
   const chartData = useMemo(
-    () => buildBudgetPaceSeries(calendar, month, totals.budget, totals.projected),
-    [calendar, month, totals.budget, totals.projected],
+    () => buildBudgetPaceSeries(calendar, month, totals.budget, totals.projected, todayDate),
+    [calendar, month, totals.budget, totals.projected, todayDate],
   )
   const historyMonths = (history ?? []).map((historyRows, index) => {
     const historyMonth = shiftMonth(month, -(index + 1))
-    const historyTotals = summarizeBudgetMonth(historyRows, historyMonth)
+    const historyTotals = summarizeBudgetMonth(historyRows, historyMonth, todayDate)
     return { month: historyMonth, ...historyTotals, underBudget: historyTotals.budget > 0 && historyTotals.actual <= historyTotals.budget }
   }).reverse()
-  const underBudgetCount = historyMonths.filter((item) => item.underBudget).length
+  const historySummary = summarizeBudgetHistory(historyMonths)
+  const previousMonth = historyMonths[historyMonths.length - 1]
   const loading = comparisonLoading || calendarLoading
+  const pageError = comparisonErrorValue ?? calendarErrorValue
+  const retryPage = () => {
+    void Promise.all([refetchComparison(), refetchCalendar()])
+  }
 
   const fmt = (amount: number) => mask(formatCurrency(amount, currency, locale))
   const remainingPositive = totals.remaining >= 0
@@ -113,8 +154,8 @@ export default function BudgetOverviewPage() {
         section={t('nav.groupAnalysis')}
         title={t('nav.budget')}
         action={(
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="icon" aria-label={t('dashboard.monthPrevious')} onClick={() => setMonth((value) => shiftMonth(value, -1))}>
+          <div className="flex flex-wrap items-center gap-1">
+            <Button variant="outline" size="icon" aria-label={t('dashboard.monthPrevious')} onClick={() => setMonthOverride((value) => shiftMonth(value ?? month, -1))}>
               <ChevronLeft className="size-4" />
             </Button>
             <Popover open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
@@ -130,28 +171,48 @@ export default function BudgetOverviewPage() {
                   selectedMonth={new Date(`${month}-01T00:00:00`)}
                   onMonthSelect={(date) => {
                     if (!date) return
-                    setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
+                    setMonthOverride(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
                     setMonthPickerOpen(false)
                   }}
                 />
               </PopoverContent>
             </Popover>
-            <Button variant="outline" size="icon" aria-label={t('dashboard.monthNext')} onClick={() => setMonth((value) => shiftMonth(value, 1))}>
+            <Button variant="outline" size="icon" aria-label={t('dashboard.monthNext')} onClick={() => setMonthOverride((value) => shiftMonth(value ?? month, 1))}>
               <ChevronRight className="size-4" />
             </Button>
             <Button asChild variant="outline" className="ml-2 gap-2">
-              <Link to="/budgets"><Settings2 className="size-4" />{t('nav.budgetSettings')}</Link>
+              <Link to={`/budgets?month=${month}`}><Settings2 className="size-4" />{t('nav.budgetSettings')}</Link>
             </Button>
           </div>
         )}
       />
 
-      {loading ? (
+      {pageError ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-500/30 dark:bg-rose-500/10">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <AlertCircle className="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
+            <span className="truncate text-sm text-rose-900 dark:text-rose-200">{extractApiError(pageError, t('reports.loadError'))}</span>
+          </div>
+          <button type="button" onClick={retryPage} className="shrink-0 text-sm font-semibold text-rose-600 hover:underline dark:text-rose-400">{t('common.retry')}</button>
+        </div>
+      ) : loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}
         </div>
       ) : (
         <>
+          {totals.budget <= 0 && (
+            <div role="status" className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div>
+                <p className="text-sm font-semibold text-foreground">{t('budgetOverview.noBudgetForMonth', { month: monthTitle })}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{t('budgetOverview.createBudgetPrompt')}</p>
+              </div>
+              <Button asChild variant="outline" className="shrink-0">
+                <Link to={`/budgets?month=${month}`}>{t('budgetOverview.setBudgets')}</Link>
+              </Button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             <MetricCard
               label={t('budgetOverview.remaining')}
@@ -184,7 +245,7 @@ export default function BudgetOverviewPage() {
               </div>
               <div className="h-[250px] sm:h-[300px] px-2 sm:px-4 pb-3 pt-3">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+                  <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
                     <defs>
                       <linearGradient id="budget-actual-fill" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.2} />
@@ -193,7 +254,7 @@ export default function BudgetOverviewPage() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.55} />
                     <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} />
-                    <YAxis width={58} tickLine={false} axisLine={false} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} tickFormatter={(value: number) => fmt(value)} />
+                    <YAxis width={68} tickLine={false} axisLine={false} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} tickFormatter={(value: number) => compactCurrency(value, currency, locale)} />
                     <ChartTooltip
                       formatter={(value, name) => [fmt(Number(value)), name === 'actual' ? t('budgetOverview.spent') : name === 'planned' ? t('budgetOverview.projected') : t('budgetOverview.totalBudget')]}
                       labelFormatter={(day) => t('budgetOverview.dayOfMonth', { day })}
@@ -232,19 +293,47 @@ export default function BudgetOverviewPage() {
 
               <Card title={t('budgetOverview.history')}>
                 <div className="p-4 sm:p-5">
-                  {historyMonths.length ? (
+                  {historyLoading ? (
+                    <Skeleton className="h-24 w-full rounded-lg" />
+                  ) : historyError ? (
+                    <div className="flex items-center justify-between gap-3 text-sm text-destructive">
+                      <span>{t('reports.loadError')}</span>
+                      <button type="button" onClick={() => { void refetchHistory() }} className="shrink-0 font-semibold hover:underline">{t('common.retry')}</button>
+                    </div>
+                  ) : historyMonths.length ? (
                     <>
+                      {previousMonth && previousMonth.budget > 0 && (
+                        <div className="mb-4 rounded-lg bg-muted/50 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">{t('budgetOverview.previousMonth')}</p>
+                          <p className="mt-1 text-sm font-medium tabular-nums text-foreground">
+                            {t('budgetOverview.previousMonthSummary', {
+                              month: monthLabel(previousMonth.month, i18n.resolvedLanguage ?? i18n.language),
+                              spent: fmt(previousMonth.actual),
+                              budget: fmt(previousMonth.budget),
+                              remaining: fmt(previousMonth.remaining),
+                            })}
+                          </p>
+                        </div>
+                      )}
                       <div className="grid grid-cols-6 gap-2">
                         {historyMonths.map((item) => (
                           <div key={item.month} className="text-center">
-                            <div className={`mx-auto size-9 rounded-full flex items-center justify-center text-sm ${item.budget > 0 ? item.underBudget ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-muted text-muted-foreground'}`}>
-                              {item.budget > 0 ? item.underBudget ? '✓' : '!' : '·'}
-                            </div>
+                            <button
+                              type="button"
+                              title={monthLabel(item.month, i18n.resolvedLanguage ?? i18n.language)}
+                              aria-label={`${monthLabel(item.month, i18n.resolvedLanguage ?? i18n.language)}: ${item.budget > 0 ? `${fmt(item.actual)} / ${fmt(item.budget)}` : t('budgetOverview.noBudgetSet')}`}
+                              onClick={() => setMonthOverride(item.month)}
+                              className={`mx-auto flex size-9 items-center justify-center rounded-full text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${item.budget > 0 ? item.underBudget ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400' : 'bg-muted text-muted-foreground hover:bg-muted/70'}`}
+                            >{item.budget > 0 ? item.underBudget ? '✓' : '!' : '·'}</button>
                             <p className="mt-2 text-[10px] uppercase text-muted-foreground">{monthLabel(item.month, i18n.resolvedLanguage ?? i18n.language).slice(0, 3)}</p>
                           </div>
                         ))}
                       </div>
-                      <p className="mt-4 text-xs text-muted-foreground">{t('budgetOverview.monthsUnderBudget', { count: underBudgetCount, total: historyMonths.length })}</p>
+                      <p className="mt-4 text-xs text-muted-foreground">
+                        {historySummary.budgetedMonths > 0
+                          ? t('budgetOverview.monthsUnderBudget', { count: historySummary.underBudgetMonths, total: historySummary.budgetedMonths })
+                          : t('budgetOverview.noHistory')}
+                      </p>
                     </>
                   ) : <p className="text-sm text-muted-foreground">{t('budgetOverview.noHistory')}</p>}
                 </div>
@@ -254,7 +343,7 @@ export default function BudgetOverviewPage() {
 
           <Card
             title={t('budgetOverview.categoryBudgets')}
-            action={<span className="text-xs text-muted-foreground">{t('budgetOverview.categoriesCount', { count: rows.filter((row) => row.budget_amount != null).length })}</span>}
+            action={<span className="text-xs text-muted-foreground">{t('budgetOverview.categoriesCount', { count: rows.filter((row) => row.budget_amount != null && row.budget_amount > 0).length })}</span>}
           >
             {sortedRows.length ? (
               <div className="divide-y divide-border">
@@ -265,7 +354,13 @@ export default function BudgetOverviewPage() {
                   const near = hasBudget && percent >= 80 && !over
                   const barColor = over ? 'bg-rose-500' : near ? 'bg-amber-500' : 'bg-primary'
                   return (
-                    <div key={row.category_id} className="px-4 sm:px-5 py-3.5 flex items-center gap-3 sm:gap-4 hover:bg-muted/30 transition-colors">
+                    <Link
+                      key={row.category_id}
+                      to={`/transactions?category_id=${encodeURIComponent(row.category_id)}&from=${monthRange(month).from}&to=${monthRange(month).to}`}
+                      aria-label={`${t('budgetOverview.viewTransactionsFor', { category: row.category_name })} · ${monthTitle}`}
+                      className="block px-4 py-3.5 transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-5"
+                    >
+                    <div className="flex items-center gap-3 sm:gap-4">
                       <CategoryIcon icon={row.category_icon} color={row.category_color} size="lg" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-3 mb-2">
@@ -287,13 +382,14 @@ export default function BudgetOverviewPage() {
                         )}
                       </div>
                     </div>
+                    </Link>
                   )
                 })}
               </div>
             ) : (
               <div className="py-12 text-center px-6">
                 <p className="text-sm text-muted-foreground">{t('budgetOverview.noData')}</p>
-                <Button asChild variant="outline" size="sm" className="mt-4"><Link to="/budgets">{t('budgetOverview.setBudgets')}</Link></Button>
+                <Button asChild variant="outline" size="sm" className="mt-4"><Link to={`/budgets?month=${month}`}>{t('budgetOverview.setBudgets')}</Link></Button>
               </div>
             )}
             {totals.unbudgeted > 0 && (

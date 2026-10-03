@@ -71,3 +71,10 @@ export function visibleNavItems(
     return next !== undefined && next.type === 'link'
   })
 }
+
+/** Match a route to a sidebar link without treating similarly prefixed paths as the same page. */
+export function isNavItemActive(pathname: string, itemPath: string): boolean {
+  return itemPath === '/'
+    ? pathname === '/'
+    : pathname === itemPath || pathname.startsWith(`${itemPath}/`)
+}

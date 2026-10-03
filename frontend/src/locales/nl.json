@@ -1335,6 +1335,9 @@
     "darkMode": "Donkere modus"
   },
   "budgets": {
+    "averageLastThreeMonths": "Gemiddelde van 3 maanden: {{amount}}",
+    "useAverage": "Gemiddelde gebruiken",
+    "noAverageAvailable": "Geen uitgavengemiddelde beschikbaar voor deze categorie.",
     "title": "Budgetten",
     "add": "Budget toevoegen",
     "edit": "Budget bewerken",
@@ -2863,6 +2866,11 @@
     }
   },
   "budgetOverview": {
+    "noBudgetForMonth": "Geen budget voor {{month}}",
+    "createBudgetPrompt": "Stel categoriebudgetten in om je uitgaven deze maand bij te houden.",
+    "viewTransactionsFor": "Transacties bekijken voor {{category}}",
+    "previousMonth": "Vorige maand",
+    "previousMonthSummary": "{{month}}: {{spent}} uitgegeven van {{budget}} · {{remaining}} over",
     "totalBudget": "Totaal budget",
     "remaining": "Budget over",
     "spent": "Uitgegeven",

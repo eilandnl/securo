@@ -1333,6 +1333,9 @@
     "darkMode": "ダークモード"
   },
   "budgets": {
+    "averageLastThreeMonths": "過去3か月の平均: {{amount}}",
+    "useAverage": "平均を使用",
+    "noAverageAvailable": "このカテゴリの支出平均はありません。",
     "title": "予算",
     "add": "予算を追加",
     "edit": "予算を編集",
@@ -2861,6 +2864,11 @@
     }
   },
   "budgetOverview": {
+    "noBudgetForMonth": "{{month}}の予算は未設定です",
+    "createBudgetPrompt": "今月の支出を把握するため、カテゴリ別の予算を設定してください。",
+    "viewTransactionsFor": "{{category}}の取引を表示",
+    "previousMonth": "前月",
+    "previousMonthSummary": "{{month}}: 予算{{budget}}のうち{{spent}}を支出 · 残り{{remaining}}",
     "totalBudget": "Total budget",
     "remaining": "Budget remaining",
     "spent": "Spent so far",

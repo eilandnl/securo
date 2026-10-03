@@ -1334,6 +1334,9 @@
     "darkMode": "Modo oscuro"
   },
   "budgets": {
+    "averageLastThreeMonths": "Promedio de 3 meses: {{amount}}",
+    "useAverage": "Usar promedio",
+    "noAverageAvailable": "No hay un promedio de gastos disponible para esta categoría.",
     "title": "Presupuestos",
     "add": "Agregar presupuesto",
     "edit": "Editar presupuesto",
@@ -2862,6 +2865,11 @@
     }
   },
   "budgetOverview": {
+    "noBudgetForMonth": "No hay presupuesto para {{month}}",
+    "createBudgetPrompt": "Añade presupuestos por categoría para controlar tus gastos este mes.",
+    "viewTransactionsFor": "Ver transacciones de {{category}}",
+    "previousMonth": "Mes anterior",
+    "previousMonthSummary": "{{month}}: {{spent}} gastados de {{budget}} · quedan {{remaining}}",
     "totalBudget": "Total budget",
     "remaining": "Budget remaining",
     "spent": "Spent so far",

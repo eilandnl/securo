@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { BudgetVsActual, TransactionCalendarResponse } from '@/types'
-import { buildBudgetPaceSeries, sortBudgetCategories, summarizeBudgetMonth } from '@/lib/budget-overview-utils'
+import {
+  averageActualForCategory,
+  buildBudgetPaceSeries,
+  normalizeBudgetComparisonRows,
+  sortBudgetCategories,
+  summarizeBudgetHistory,
+  summarizeBudgetMonth,
+  type BudgetVsActualApiRow,
+} from '@/lib/budget-overview-utils'
 
 function row(overrides: Partial<BudgetVsActual> = {}): BudgetVsActual {
   return {
@@ -52,6 +60,66 @@ describe('summarizeBudgetMonth', () => {
     expect(noBudget.budget).toBe(0)
     expect(noBudget.safeDaily).toBe(0)
     expect(noBudget.unbudgeted).toBe(25)
+  })
+
+  it('counts zero-limit categories as unbudgeted spending', () => {
+    const result = summarizeBudgetMonth([
+      row({ category_id: 'zero-budget', budget_amount: 0, actual_amount: 12 }),
+      row({ category_id: 'no-budget', budget_amount: null, actual_amount: 8 }),
+    ], '2026-10', new Date(2026, 9, 3))
+
+    expect(result.unbudgeted).toBe(20)
+  })
+})
+
+describe('normalizeBudgetComparisonRows', () => {
+  it('converts decimal strings from the API to numbers and preserves nullable values', () => {
+    const raw = {
+      ...row(),
+      budget_amount: '125.50',
+      actual_amount: '42.75',
+      projected_amount: '60.25',
+      prev_month_amount: '20.00',
+      projected_prev_month_amount: '24.00',
+      percentage_used: '34.06',
+    } as unknown as BudgetVsActualApiRow
+
+    expect(normalizeBudgetComparisonRows([raw])[0]).toMatchObject({
+      budget_amount: 125.5,
+      actual_amount: 42.75,
+      projected_amount: 60.25,
+      prev_month_amount: 20,
+      projected_prev_month_amount: 24,
+      percentage_used: 34.06,
+    })
+
+    const withoutBudget = { ...raw, budget_amount: null, percentage_used: null }
+    expect(normalizeBudgetComparisonRows([withoutBudget])[0]).toMatchObject({
+      budget_amount: null,
+      percentage_used: null,
+    })
+  })
+})
+
+describe('averageActualForCategory', () => {
+  it('averages a category across all requested months, including months with no activity', () => {
+    const result = averageActualForCategory([
+      [row({ category_id: 'food', actual_amount: 60 })],
+      [],
+      [row({ category_id: 'food', actual_amount: 60 })],
+    ], 'food')
+
+    expect(result).toBe(40)
+  })
+})
+
+describe('summarizeBudgetHistory', () => {
+  it('excludes months without budgets from the under-budget denominator', () => {
+    expect(summarizeBudgetHistory([
+      { budget: 0, actual: 25 },
+      { budget: 100, actual: 80 },
+      { budget: 50, actual: 55 },
+    ])).toEqual({ underBudgetMonths: 1, budgetedMonths: 2 })
   })
 })
 

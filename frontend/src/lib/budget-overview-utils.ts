@@ -1,6 +1,37 @@
 import type { BudgetVsActual, TransactionCalendarResponse } from '@/types'
 import { monthLastDay } from '@/lib/month-utils'
 
+type DecimalAmount = number | string
+
+export type BudgetVsActualApiRow = Omit<
+  BudgetVsActual,
+  | 'budget_amount'
+  | 'actual_amount'
+  | 'projected_amount'
+  | 'prev_month_amount'
+  | 'projected_prev_month_amount'
+  | 'percentage_used'
+> & {
+  budget_amount: DecimalAmount | null
+  actual_amount: DecimalAmount
+  projected_amount: DecimalAmount
+  prev_month_amount: DecimalAmount
+  projected_prev_month_amount: DecimalAmount
+  percentage_used: DecimalAmount | null
+}
+
+export function normalizeBudgetComparisonRows(rows: BudgetVsActualApiRow[]): BudgetVsActual[] {
+  return rows.map((row) => ({
+    ...row,
+    budget_amount: row.budget_amount === null ? null : Number(row.budget_amount),
+    actual_amount: Number(row.actual_amount),
+    projected_amount: Number(row.projected_amount),
+    prev_month_amount: Number(row.prev_month_amount),
+    projected_prev_month_amount: Number(row.projected_prev_month_amount),
+    percentage_used: row.percentage_used === null ? null : Number(row.percentage_used),
+  }))
+}
+
 export interface BudgetOverviewTotals {
   budget: number
   actual: number
@@ -14,6 +45,23 @@ export interface BudgetOverviewTotals {
   paceDelta: number
 }
 
+export function averageActualForCategory(months: BudgetVsActual[][], categoryId: string): number {
+  if (months.length === 0) return 0
+  const total = months.reduce((sum, rows) => {
+    const category = rows.find((row) => row.category_id === categoryId)
+    return sum + (category?.actual_amount ?? 0)
+  }, 0)
+  return total / months.length
+}
+
+export function summarizeBudgetHistory(months: Array<Pick<BudgetOverviewTotals, 'budget' | 'actual'>>) {
+  const budgetedMonths = months.filter((month) => month.budget > 0)
+  return {
+    underBudgetMonths: budgetedMonths.filter((month) => month.actual <= month.budget).length,
+    budgetedMonths: budgetedMonths.length,
+  }
+}
+
 export function summarizeBudgetMonth(
   rows: BudgetVsActual[],
   month: string,
@@ -24,7 +72,7 @@ export function summarizeBudgetMonth(
   const actual = rows.reduce((sum, row) => sum + row.actual_amount, 0)
   const projected = rows.reduce((sum, row) => sum + row.projected_amount, 0)
   const unbudgeted = rows
-    .filter((row) => row.budget_amount == null)
+    .filter((row) => row.budget_amount == null || row.budget_amount <= 0)
     .reduce((sum, row) => sum + row.actual_amount, 0)
 
   const monthDays = monthLastDay(month)
