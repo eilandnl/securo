@@ -132,7 +132,9 @@
     "agents": "Agents",
     "aiAgents": "AI-agents",
     "collapseSidebar": "Zijbalk inklappen",
-    "expandSidebar": "Zijbalk uitklappen"
+    "expandSidebar": "Zijbalk uitklappen",
+    "budget": "Budget",
+    "budgetSettings": "Budget instellen"
   },
   "invoices": {
     "title": "Invoices",
@@ -1348,7 +1350,8 @@
     "recurringLabel": "Terugkerend",
     "confirmDeleteTitle": "Budget verwijderen?",
     "confirmDeleteDescription": "Het budget voor \"{{name}}\" wordt permanent verwijderd. Bestaande transacties worden niet beïnvloed. Deze actie kan niet ongedaan worden gemaakt.",
-    "confirmDeleteRecurringDescription": "Het terugkerende budget voor \"{{name}}\" wordt permanent verwijderd. Deze definitie geldt niet meer voor latere maanden. Bestaande transacties worden niet beïnvloed. Deze actie kan niet ongedaan worden gemaakt."
+    "confirmDeleteRecurringDescription": "Het terugkerende budget voor \"{{name}}\" wordt permanent verwijderd. Deze definitie geldt niet meer voor latere maanden. Bestaande transacties worden niet beïnvloed. Deze actie kan niet ongedaan worden gemaakt.",
+    "settingsTitle": "Budget instellen"
   },
   "goals": {
     "title": "Doelen",
@@ -2858,5 +2861,38 @@
       "recurring": "Regels voor Terugkerend",
       "recurringHint": "Hoe we bepalen dat een afschrijving de rekening is die je al verwachtte."
     }
+  },
+  "budgetOverview": {
+    "totalBudget": "Totaal budget",
+    "remaining": "Budget over",
+    "spent": "Uitgegeven",
+    "expected": "Verwacht deze maand",
+    "safeDaily": "Veilig uit te geven per dag",
+    "forDays": "Nog {{count}} dagen",
+    "overBudgetBy": "{{amount}} boven budget",
+    "ofBudget": "van {{amount}} begroot",
+    "pace": "Uitgavetempo",
+    "monthlyPace": "Budgettempo",
+    "monthElapsed": "Maand verstreken",
+    "budgetUsed": "Budget gebruikt",
+    "expectedAtPace": "Bij huidig tempo",
+    "monthEndEstimate": "Verwacht einde maand",
+    "history": "Historie",
+    "monthsUnderBudget": "{{count}} van {{total}} maanden binnen budget",
+    "noHistory": "Nog geen budgethistorie",
+    "categoryBudgets": "Budget per categorie",
+    "categoriesCount": "{{count}} budgetcategorieën",
+    "unbudgetedSpending": "Uitgegeven buiten budget",
+    "noData": "Geen uitgaven deze maand",
+    "setBudgets": "Budgetten instellen",
+    "noBudget": "Stel budgetten in om je uitgavetempo te zien.",
+    "belowPace": "{{amount}} onder tempo",
+    "abovePace": "{{amount}} boven tempo",
+    "actualToDate": "Werkelijk uitgegeven",
+    "plannedTransactions": "Geplande transacties",
+    "projected": "Prognose",
+    "dayOfMonth": "Dag {{day}}",
+    "noBudgetSet": "Geen budget ingesteld",
+    "leftOf": "van {{budget}} totaalbudget"
   }
 }

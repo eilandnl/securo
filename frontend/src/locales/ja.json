@@ -132,7 +132,9 @@
     "agents": "エージェント",
     "aiAgents": "AIエージェント",
     "collapseSidebar": "サイドバーを折りたたむ",
-    "expandSidebar": "サイドバーを展開する"
+    "expandSidebar": "サイドバーを展開する",
+    "budget": "Budget",
+    "budgetSettings": "Budget settings"
   },
   "invoices": {
     "title": "請求書",
@@ -1346,7 +1348,8 @@
     "confirmDeleteDescription": "「{{name}}」の予算を完全に削除します。既存の取引には影響しません。この操作は取り消せません。",
     "confirmDeleteRecurringDescription": "「{{name}}」の定期的な予算を完全に削除します。この定義は以降の月には適用されなくなります。既存の取引には影響しません。この操作は取り消せません。",
     "repeatEveryMonth": "毎月繰り返す",
-    "recurringLabel": "定期的"
+    "recurringLabel": "定期的",
+    "settingsTitle": "Budget settings"
   },
   "goals": {
     "title": "目標",
@@ -2856,5 +2859,38 @@
       "recurring": "定期のルール",
       "recurringHint": "ある引き落としが予定していた支払いだと判断する方法。"
     }
+  },
+  "budgetOverview": {
+    "totalBudget": "Total budget",
+    "remaining": "Budget remaining",
+    "spent": "Spent so far",
+    "expected": "Expected this month",
+    "safeDaily": "Safe to spend per day",
+    "forDays": "{{count}} days remaining",
+    "overBudgetBy": "Over budget by {{amount}}",
+    "ofBudget": "of {{amount}} budgeted",
+    "pace": "Spending pace",
+    "monthlyPace": "Budget pace",
+    "monthElapsed": "Month elapsed",
+    "budgetUsed": "Budget used",
+    "expectedAtPace": "At current pace",
+    "monthEndEstimate": "Month-end estimate",
+    "history": "History",
+    "monthsUnderBudget": "{{count}} of {{total}} months under budget",
+    "noHistory": "No budget history yet",
+    "categoryBudgets": "Category budgets",
+    "categoriesCount": "{{count}} budget categories",
+    "unbudgetedSpending": "Spending outside your budget",
+    "noData": "No spending data for this month",
+    "setBudgets": "Set budgets",
+    "noBudget": "Set a budget to see your spending pace.",
+    "belowPace": "{{amount}} below pace",
+    "abovePace": "{{amount}} above pace",
+    "actualToDate": "Actual spending",
+    "plannedTransactions": "Planned transactions",
+    "projected": "Projected",
+    "dayOfMonth": "Day {{day}}",
+    "noBudgetSet": "No budget set",
+    "leftOf": "{{budget}} total budget"
   }
 }

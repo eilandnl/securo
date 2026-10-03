@@ -40,17 +40,18 @@ describe('nav catalog', () => {
 
   it('has a link for every module in the catalog', () => {
     const covered = navItems.filter((i) => i.type === 'link').map((i) => i.module)
-    expect([...covered].sort()).toEqual([...MODULE_IDS].sort())
+    expect([...new Set(covered)].sort()).toEqual([...MODULE_IDS].sort())
   })
 
-  it('gives every link a distinct module', () => {
+  it('allows overview and settings links for the budgets module only', () => {
     const covered = navItems.filter((i) => i.type === 'link').map((i) => i.module)
-    expect(new Set(covered).size).toBe(covered.length)
+    const repeated = covered.filter((module, index) => covered.indexOf(module) !== index)
+    expect(repeated).toEqual(['budgets'])
   })
 })
 
 describe('visibleNavItems', () => {
-  it('renders a personal workspace exactly as before modules existed', () => {
+  it('renders both budget destinations in a personal workspace', () => {
     const personal = visibleNavItems(navItems, (id) => PERSONAL_MODULES.includes(id))
     expect(linkKeys(personal)).toEqual([
       'transactions',
@@ -58,7 +59,8 @@ describe('visibleNavItems', () => {
       'import',
       'reports',
       'assets',
-      'budgets',
+      'budget',
+      'budgetSettings',
       'goals',
       'recurring',
       'categories',

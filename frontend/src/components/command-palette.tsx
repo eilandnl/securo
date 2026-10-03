@@ -61,7 +61,8 @@ const NAV_ITEMS: StaticItem[] = [
   { id: 'nav-import', labelKey: 'nav.import', icon: Upload, path: '/import', keywords: ['csv', 'ofx', 'importar'], module: 'import' },
   { id: 'nav-reports', labelKey: 'nav.reports', icon: BarChart3, path: '/reports', keywords: ['relatorios', 'relatórios', 'charts'], module: 'reports' },
   { id: 'nav-assets', labelKey: 'nav.assets', icon: Landmark, path: '/assets', keywords: ['patrimonio', 'patrimônio'], module: 'assets' },
-  { id: 'nav-budgets', labelKey: 'nav.budgets', icon: PiggyBank, path: '/budgets', keywords: ['orcamentos', 'orçamentos'], module: 'budgets' },
+  { id: 'nav-budget', labelKey: 'nav.budget', icon: PiggyBank, path: '/budget', keywords: ['orcamentos', 'orçamentos', 'budget'], module: 'budgets' },
+  { id: 'nav-budget-settings', labelKey: 'nav.budgetSettings', icon: SlidersHorizontal, path: '/budgets', keywords: ['budget settings', 'instellen', 'configurar orçamento'], module: 'budgets' },
   { id: 'nav-goals', labelKey: 'nav.goals', icon: Target, path: '/goals', keywords: ['metas'], module: 'goals' },
   { id: 'nav-recurring', labelKey: 'nav.recurring', icon: Repeat, path: '/recurring', keywords: ['recorrentes'], module: 'recurring' },
   { id: 'nav-categories', labelKey: 'nav.categories', icon: Tag, path: '/categories', keywords: ['categorias'], module: 'categories' },
@@ -781,4 +782,3 @@ function Kbd({ children }: { children: React.ReactNode }) {
     </kbd>
   )
 }
-

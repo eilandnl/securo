@@ -132,7 +132,9 @@
     "agents": "Βοηθοί",
     "aiAgents": "Βοηθοί AI",
     "collapseSidebar": "Σύμπτυξη πλευρικής γραμμής",
-    "expandSidebar": "Ανάπτυξη πλευρικής γραμμής"
+    "expandSidebar": "Ανάπτυξη πλευρικής γραμμής",
+    "budget": "Budget",
+    "budgetSettings": "Budget settings"
   },
   "invoices": {
     "title": "Τιμολόγια",
@@ -1346,7 +1348,8 @@
     "confirmDeleteDescription": "Ο προϋπολογισμός για \"{{name}}\" θα διαγραφεί οριστικά. Οι υπάρχουσες συναλλαγές δεν επηρεάζονται. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
     "confirmDeleteRecurringDescription": "Ο επαναλαμβανόμενος προϋπολογισμός για \"{{name}}\" θα διαγραφεί οριστικά. Αυτός ο ορισμός δεν θα ισχύει πλέον για επόμενους μήνες. Οι υπάρχουσες συναλλαγές δεν επηρεάζονται. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
     "repeatEveryMonth": "Επανάληψη κάθε μήνα",
-    "recurringLabel": "Επαναλαμβανόμενος"
+    "recurringLabel": "Επαναλαμβανόμενος",
+    "settingsTitle": "Budget settings"
   },
   "goals": {
     "title": "Στόχοι",
@@ -2856,5 +2859,38 @@
       "recurring": "Κανόνες Επαναλαμβανόμενων",
       "recurringHint": "Πώς αποφασίζουμε ότι μια χρέωση είναι ο λογαριασμός που ήδη περιμένατε."
     }
+  },
+  "budgetOverview": {
+    "totalBudget": "Total budget",
+    "remaining": "Budget remaining",
+    "spent": "Spent so far",
+    "expected": "Expected this month",
+    "safeDaily": "Safe to spend per day",
+    "forDays": "{{count}} days remaining",
+    "overBudgetBy": "Over budget by {{amount}}",
+    "ofBudget": "of {{amount}} budgeted",
+    "pace": "Spending pace",
+    "monthlyPace": "Budget pace",
+    "monthElapsed": "Month elapsed",
+    "budgetUsed": "Budget used",
+    "expectedAtPace": "At current pace",
+    "monthEndEstimate": "Month-end estimate",
+    "history": "History",
+    "monthsUnderBudget": "{{count}} of {{total}} months under budget",
+    "noHistory": "No budget history yet",
+    "categoryBudgets": "Category budgets",
+    "categoriesCount": "{{count}} budget categories",
+    "unbudgetedSpending": "Spending outside your budget",
+    "noData": "No spending data for this month",
+    "setBudgets": "Set budgets",
+    "noBudget": "Set a budget to see your spending pace.",
+    "belowPace": "{{amount}} below pace",
+    "abovePace": "{{amount}} above pace",
+    "actualToDate": "Actual spending",
+    "plannedTransactions": "Planned transactions",
+    "projected": "Projected",
+    "dayOfMonth": "Day {{day}}",
+    "noBudgetSet": "No budget set",
+    "leftOf": "{{budget}} total budget"
   }
 }

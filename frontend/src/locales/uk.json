@@ -132,7 +132,9 @@
     "agents": "Агенти",
     "aiAgents": "ШІ-агенти",
     "collapseSidebar": "Згорнути бічну панель",
-    "expandSidebar": "Розгорнути бічну панель"
+    "expandSidebar": "Розгорнути бічну панель",
+    "budget": "Budget",
+    "budgetSettings": "Budget settings"
   },
   "invoices": {
     "title": "Invoices",
@@ -1359,7 +1361,8 @@
     "confirmDeleteDescription": "Бюджет для «{{name}}» буде видалено назавжди. Наявні транзакції не будуть порушені. Цю дію не можна скасувати.",
     "confirmDeleteRecurringDescription": "Регулярний бюджет для «{{name}}» буде видалено назавжди. Це визначення більше не застосовуватиметься в наступних місяцях. Наявні транзакції не будуть порушені. Цю дію не можна скасувати.",
     "repeatEveryMonth": "Повторювати щомісяця",
-    "recurringLabel": "Регулярний"
+    "recurringLabel": "Регулярний",
+    "settingsTitle": "Budget settings"
   },
   "goals": {
     "title": "Цілі",
@@ -2871,5 +2874,38 @@
       "recurring": "Правила повторюваних",
       "recurringHint": "Як ми визначаємо, що списання — це рахунок, на який ви вже чекали."
     }
+  },
+  "budgetOverview": {
+    "totalBudget": "Total budget",
+    "remaining": "Budget remaining",
+    "spent": "Spent so far",
+    "expected": "Expected this month",
+    "safeDaily": "Safe to spend per day",
+    "forDays": "{{count}} days remaining",
+    "overBudgetBy": "Over budget by {{amount}}",
+    "ofBudget": "of {{amount}} budgeted",
+    "pace": "Spending pace",
+    "monthlyPace": "Budget pace",
+    "monthElapsed": "Month elapsed",
+    "budgetUsed": "Budget used",
+    "expectedAtPace": "At current pace",
+    "monthEndEstimate": "Month-end estimate",
+    "history": "History",
+    "monthsUnderBudget": "{{count}} of {{total}} months under budget",
+    "noHistory": "No budget history yet",
+    "categoryBudgets": "Category budgets",
+    "categoriesCount": "{{count}} budget categories",
+    "unbudgetedSpending": "Spending outside your budget",
+    "noData": "No spending data for this month",
+    "setBudgets": "Set budgets",
+    "noBudget": "Set a budget to see your spending pace.",
+    "belowPace": "{{amount}} below pace",
+    "abovePace": "{{amount}} above pace",
+    "actualToDate": "Actual spending",
+    "plannedTransactions": "Planned transactions",
+    "projected": "Projected",
+    "dayOfMonth": "Day {{day}}",
+    "noBudgetSet": "No budget set",
+    "leftOf": "{{budget}} total budget"
   }
 }

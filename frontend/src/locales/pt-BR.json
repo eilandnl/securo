@@ -132,7 +132,9 @@
     "agents": "Agentes",
     "aiAgents": "Agentes IA",
     "collapseSidebar": "Recolher barra lateral",
-    "expandSidebar": "Expandir barra lateral"
+    "expandSidebar": "Expandir barra lateral",
+    "budget": "Orçamento",
+    "budgetSettings": "Configurar orçamento"
   },
   "invoices": {
     "title": "Cobranças",
@@ -1347,7 +1349,8 @@
     "confirmDeleteDescription": "O orçamento para \"{{name}}\" será excluído permanentemente. As transações existentes não são afetadas. Esta ação não pode ser desfeita.",
     "confirmDeleteRecurringDescription": "O orçamento recorrente para \"{{name}}\" será excluído permanentemente. Esta definição não será mais aplicada nos meses seguintes. As transações existentes não são afetadas. Esta ação não pode ser desfeita.",
     "repeatEveryMonth": "Repetir todo mês",
-    "recurringLabel": "Recorrente"
+    "recurringLabel": "Recorrente",
+    "settingsTitle": "Configurar orçamento"
   },
   "goals": {
     "title": "Metas",
@@ -2857,5 +2860,38 @@
       "recurring": "Regras de Recorrentes",
       "recurringHint": "Como decidimos que uma cobrança é a conta que você já esperava."
     }
+  },
+  "budgetOverview": {
+    "totalBudget": "Orçamento total",
+    "remaining": "Orçamento restante",
+    "spent": "Gasto até agora",
+    "expected": "Previsão deste mês",
+    "safeDaily": "Valor seguro para gastar por dia",
+    "forDays": "{{count}} dias restantes",
+    "overBudgetBy": "{{amount}} acima do orçamento",
+    "ofBudget": "de {{amount}} orçados",
+    "pace": "Ritmo de gastos",
+    "monthlyPace": "Ritmo do orçamento",
+    "monthElapsed": "Mês decorrido",
+    "budgetUsed": "Orçamento utilizado",
+    "expectedAtPace": "No ritmo atual",
+    "monthEndEstimate": "Estimativa para o fim do mês",
+    "history": "Histórico",
+    "monthsUnderBudget": "{{count}} de {{total}} meses dentro do orçamento",
+    "noHistory": "Ainda não há histórico de orçamento",
+    "categoryBudgets": "Orçamentos por categoria",
+    "categoriesCount": "{{count}} categorias com orçamento",
+    "unbudgetedSpending": "Gastos fora do orçamento",
+    "noData": "Sem despesas neste mês",
+    "setBudgets": "Configurar orçamentos",
+    "noBudget": "Defina um orçamento para ver o ritmo dos gastos.",
+    "belowPace": "{{amount}} abaixo do ritmo",
+    "abovePace": "{{amount}} acima do ritmo",
+    "actualToDate": "Gastos realizados",
+    "plannedTransactions": "Transações planejadas",
+    "projected": "Previsão",
+    "dayOfMonth": "Dia {{day}}",
+    "noBudgetSet": "Sem orçamento definido",
+    "leftOf": "de {{budget}} no total"
   }
 }

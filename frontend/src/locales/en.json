@@ -132,7 +132,9 @@
     "agents": "Agents",
     "aiAgents": "AI Agents",
     "collapseSidebar": "Collapse sidebar",
-    "expandSidebar": "Expand sidebar"
+    "expandSidebar": "Expand sidebar",
+    "budget": "Budget",
+    "budgetSettings": "Budget settings"
   },
   "invoices": {
     "title": "Invoices",
@@ -1346,7 +1348,8 @@
     "confirmDeleteDescription": "The budget for \"{{name}}\" will be permanently deleted. Existing transactions are not affected. This action cannot be undone.",
     "confirmDeleteRecurringDescription": "The recurring budget for \"{{name}}\" will be permanently deleted. This definition will no longer apply to later months. Existing transactions are not affected. This action cannot be undone.",
     "repeatEveryMonth": "Repeat every month",
-    "recurringLabel": "Recurring"
+    "recurringLabel": "Recurring",
+    "settingsTitle": "Budget settings"
   },
   "goals": {
     "title": "Goals",
@@ -2856,5 +2859,38 @@
       "recurring": "Recurring rules",
       "recurringHint": "How we decide that a charge is the bill you were already expecting."
     }
+  },
+  "budgetOverview": {
+    "totalBudget": "Total budget",
+    "remaining": "Budget remaining",
+    "spent": "Spent so far",
+    "expected": "Expected this month",
+    "safeDaily": "Safe to spend per day",
+    "forDays": "{{count}} days remaining",
+    "overBudgetBy": "Over budget by {{amount}}",
+    "ofBudget": "of {{amount}} budgeted",
+    "pace": "Spending pace",
+    "monthlyPace": "Budget pace",
+    "monthElapsed": "Month elapsed",
+    "budgetUsed": "Budget used",
+    "expectedAtPace": "At current pace",
+    "monthEndEstimate": "Month-end estimate",
+    "history": "History",
+    "monthsUnderBudget": "{{count}} of {{total}} months under budget",
+    "noHistory": "No budget history yet",
+    "categoryBudgets": "Category budgets",
+    "categoriesCount": "{{count}} budget categories",
+    "unbudgetedSpending": "Spending outside your budget",
+    "noData": "No spending data for this month",
+    "setBudgets": "Set budgets",
+    "noBudget": "Set a budget to see your spending pace.",
+    "belowPace": "{{amount}} below pace",
+    "abovePace": "{{amount}} above pace",
+    "actualToDate": "Actual spending",
+    "plannedTransactions": "Planned transactions",
+    "projected": "Projected",
+    "dayOfMonth": "Day {{day}}",
+    "noBudgetSet": "No budget set",
+    "leftOf": "{{budget}} total budget"
   }
 }
