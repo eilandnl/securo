@@ -1240,7 +1240,15 @@ export const budgets = {
   },
   comparison: async (month?: string): Promise<BudgetVsActual[]> => {
     const { data } = await api.get('/budgets/comparison', { params: { month } })
-    return data
+    return data.map((row: BudgetVsActual) => ({
+      ...row,
+      budget_amount: row.budget_amount === null ? null : Number(row.budget_amount),
+      actual_amount: Number(row.actual_amount),
+      projected_amount: Number(row.projected_amount),
+      prev_month_amount: Number(row.prev_month_amount),
+      projected_prev_month_amount: Number(row.projected_prev_month_amount),
+      percentage_used: row.percentage_used === null ? null : Number(row.percentage_used),
+    }))
   },
 }
 
