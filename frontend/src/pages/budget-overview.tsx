@@ -55,6 +55,20 @@ function MetricCard({ label, value, note, accent = false }: {
   )
 }
 
+function SummaryValue({ label, value, emphasis = false, negative = false }: {
+  label: string
+  value: string
+  emphasis?: boolean
+  negative?: boolean
+}) {
+  return (
+    <div className={emphasis ? 'rounded-lg bg-primary/5 px-3 py-3 sm:px-4' : 'px-3 py-3 sm:px-4'}>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className={`mt-1.5 text-xl sm:text-2xl font-semibold tracking-tight tabular-nums ${negative ? 'text-destructive' : 'text-foreground'}`}>{value}</p>
+    </div>
+  )
+}
+
 function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
@@ -141,12 +155,11 @@ export default function BudgetOverviewPage() {
   }
 
   const fmt = (amount: number) => mask(formatCurrency(amount, currency, locale))
-  const remainingPositive = totals.remaining >= 0
-  const paceMessage = totals.budget === 0
-    ? t('budgetOverview.noBudget')
-    : totals.paceDelta >= 0
+  const paceMessage = totals.hasBudget && totals.daysElapsed > 0 && totals.daysRemaining > 0
+    ? totals.paceDelta >= 0
       ? t('budgetOverview.belowPace', { amount: fmt(totals.paceDelta) })
       : t('budgetOverview.abovePace', { amount: fmt(Math.abs(totals.paceDelta)) })
+    : null
 
   return (
     <div className="space-y-5">
@@ -196,12 +209,10 @@ export default function BudgetOverviewPage() {
           <button type="button" onClick={retryPage} className="shrink-0 text-sm font-semibold text-rose-600 hover:underline dark:text-rose-400">{t('common.retry')}</button>
         </div>
       ) : loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}
-        </div>
+        <Skeleton className="h-36 rounded-xl" />
       ) : (
         <>
-          {totals.budget <= 0 && (
+          {!totals.hasBudget && (
             <div role="status" className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div>
                 <p className="text-sm font-semibold text-foreground">{t('budgetOverview.noBudgetForMonth', { month: monthTitle })}</p>
@@ -213,37 +224,60 @@ export default function BudgetOverviewPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-            <MetricCard
-              label={t('budgetOverview.remaining')}
-              value={fmt(totals.remaining)}
-              note={t('budgetOverview.ofBudget', { amount: fmt(totals.budget) })}
-              accent
-            />
-            <MetricCard label={t('budgetOverview.spent')} value={fmt(totals.actual)} note={paceMessage} />
-            <MetricCard label={t('budgetOverview.expected')} value={fmt(totals.projected)} note={t('dashboard.spendingProjection', { amount: fmt(totals.projected) })} />
-            <MetricCard
-              label={t('budgetOverview.safeDaily')}
-              value={fmt(totals.safeDaily)}
-              note={remainingPositive
-                ? t('budgetOverview.forDays', { count: totals.daysRemaining })
-                : t('budgetOverview.overBudgetBy', { amount: fmt(Math.abs(totals.remaining)) })}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] gap-5">
-            <Card title={t('budgetOverview.pace')}>
-              <div className="px-4 sm:px-5 pt-4 pb-1 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-3xl sm:text-4xl font-semibold tracking-tight tabular-nums">{fmt(Math.max(0, totals.remaining))}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{t('budgetOverview.leftOf', { budget: fmt(totals.budget) })}</p>
-                </div>
-                <div className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${totals.paceDelta >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+          {(totals.hasBudget || totals.hasActivity) && (
+            <Card
+              title={t('budgetOverview.monthlySummary')}
+              action={paceMessage ? (
+                <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${totals.paceDelta >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
                   {totals.paceDelta >= 0 ? <ArrowDownRight className="inline size-3.5 mr-1" /> : <ArrowUpRight className="inline size-3.5 mr-1" />}
                   {paceMessage}
+                </span>
+              ) : undefined}
+            >
+              <div className="p-2 sm:p-3">
+                <div className={`grid ${totals.hasBudget ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-1'} gap-1`}>
+                  {totals.hasBudget ? (
+                    <>
+                      <SummaryValue label={t('budgetOverview.remaining')} value={fmt(totals.remaining)} emphasis negative={totals.remaining < 0} />
+                      <SummaryValue label={t('budgetOverview.spent')} value={fmt(totals.actual)} />
+                      <SummaryValue label={t('budgetOverview.totalBudget')} value={fmt(totals.budget)} />
+                      {totals.daysRemaining > 0 && (
+                        <SummaryValue label={t('budgetOverview.safeDaily')} value={fmt(totals.safeDaily)} />
+                      )}
+                    </>
+                  ) : (
+                    <SummaryValue label={t('budgetOverview.spent')} value={fmt(totals.actual)} emphasis />
+                  )}
                 </div>
+                {totals.hasBudget && (
+                  <div className="mt-2 px-3 pb-3 sm:px-4" aria-label={t('budgetOverview.budgetUsed')}>
+                    <div className="mb-2 flex justify-between gap-3 text-xs">
+                      <span className="text-muted-foreground">{t('budgetOverview.budgetUsed')}</span>
+                      <span className="font-medium tabular-nums">{Math.round((totals.actual / totals.budget) * 100)}%</span>
+                    </div>
+                    <div
+                      role="progressbar"
+                      aria-label={t('budgetOverview.budgetUsed')}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.min(100, Math.max(0, (totals.actual / totals.budget) * 100))}
+                      className="h-2 overflow-hidden rounded-full bg-muted"
+                    >
+                      <div
+                        className={`h-full rounded-full transition-[width] ${totals.actual / totals.budget > 0.8 ? 'bg-amber-500' : 'bg-primary'}`}
+                        style={{ width: `${Math.min(100, Math.max(0, (totals.actual / totals.budget) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="h-[250px] sm:h-[300px] px-2 sm:px-4 pb-3 pt-3">
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] gap-5">
+            {(totals.hasBudget || totals.hasActivity) && (
+              <Card title={t('budgetOverview.pace')}>
+                <div className="h-[250px] sm:h-[300px] px-2 sm:px-4 pb-3 pt-3">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
                     <defs>
@@ -265,31 +299,35 @@ export default function BudgetOverviewPage() {
                     <Area type="monotone" dataKey="planned" connectNulls={false} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="5 4" fill="none" dot={false} activeDot={{ r: 4 }} />
                   </AreaChart>
                 </ResponsiveContainer>
-              </div>
-              <div className="px-5 pb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-                <span><span className="inline-block size-2 rounded-full bg-primary mr-2" />{t('budgetOverview.actualToDate')}</span>
-                <span><span className="inline-block size-2 rounded-full bg-[var(--chart-2)] mr-2" />{t('budgetOverview.plannedTransactions')}</span>
-                <span><span className="inline-block w-4 border-t border-dashed border-muted-foreground mr-2 align-middle" />{t('budgetOverview.totalBudget')}</span>
-              </div>
-            </Card>
-
-            <div className="space-y-5">
-              <Card title={t('budgetOverview.monthlyPace')}>
-                <div className="p-4 sm:p-5 space-y-4">
-                  <div>
-                    <div className="flex justify-between text-xs mb-2"><span className="text-muted-foreground">{t('budgetOverview.monthElapsed')}</span><span className="font-medium">{Math.round((totals.daysElapsed / Math.max(1, chartData.length)) * 100)}%</span></div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden"><div className="h-full bg-muted-foreground/50 rounded-full" style={{ width: `${Math.min(100, (totals.daysElapsed / Math.max(1, chartData.length)) * 100)}%` }} /></div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-2"><span className="text-muted-foreground">{t('budgetOverview.budgetUsed')}</span><span className="font-medium">{totals.budget > 0 ? Math.round((totals.actual / totals.budget) * 100) : 0}%</span></div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden"><div className={`h-full rounded-full ${totals.budget > 0 && totals.actual / totals.budget > 0.8 ? 'bg-amber-500' : 'bg-primary'}`} style={{ width: `${totals.budget > 0 ? Math.min(100, (totals.actual / totals.budget) * 100) : 0}%` }} /></div>
-                  </div>
-                  <div className="border-t border-border pt-4 grid grid-cols-2 gap-4">
-                    <div><p className="text-xs text-muted-foreground">{t('budgetOverview.expectedAtPace')}</p><p className="mt-1 font-semibold tabular-nums">{fmt(totals.expectedAtPace)}</p></div>
-                    <div><p className="text-xs text-muted-foreground">{t('budgetOverview.monthEndEstimate')}</p><p className="mt-1 font-semibold tabular-nums">{fmt(totals.projected)}</p></div>
-                  </div>
+                </div>
+                <div className="px-5 pb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+                  <span><span className="inline-block size-2 rounded-full bg-primary mr-2" />{t('budgetOverview.actualToDate')}</span>
+                  <span><span className="inline-block size-2 rounded-full bg-[var(--chart-2)] mr-2" />{t('budgetOverview.plannedTransactions')}</span>
+                  {totals.hasBudget && <span><span className="inline-block w-4 border-t border-dashed border-muted-foreground mr-2 align-middle" />{t('budgetOverview.totalBudget')}</span>}
                 </div>
               </Card>
+            )}
+
+            <div className={`${totals.hasBudget || totals.hasActivity ? 'space-y-5' : 'xl:col-span-2'}`}>
+              {(totals.hasBudget || totals.hasActivity) && (
+                <Card title={t('budgetOverview.monthlyPace')}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 sm:p-5">
+                    {totals.expectedAtPace !== null && (
+                      <MetricCard
+                        label={t('budgetOverview.expectedAtPace')}
+                        value={fmt(totals.expectedAtPace)}
+                        note={t('budgetOverview.paceEstimateHint')}
+                      />
+                    )}
+                    <MetricCard
+                      label={t('budgetOverview.monthEndEstimate')}
+                      value={fmt(totals.projected)}
+                      note={t('budgetOverview.transactionForecastHint')}
+                      accent={totals.expectedAtPace === null}
+                    />
+                  </div>
+                </Card>
+              )}
 
               <Card title={t('budgetOverview.history')}>
                 <div className="p-4 sm:p-5">
