@@ -284,6 +284,7 @@ export interface Transaction {
   effective_bill_date: string | null
   // The recurring bill this transaction fulfills, if any (issue #116).
   recurring_transaction_id?: string | null
+  asset_contribution_asset_id?: string | null
   splits: TransactionSplit[]
   // Shared-transaction view fields. Set per-request when the viewer
   // is a linked split member but not the owner. Render `viewer_share`
@@ -542,6 +543,10 @@ export interface RulePreviewItem {
   current_category_name: string | null
   new_category_id: string | null
   new_category_name: string | null
+  current_asset_contribution_asset_id?: string | null
+  current_asset_contribution_asset_name?: string | null
+  new_asset_contribution_asset_id?: string | null
+  new_asset_contribution_asset_name?: string | null
   will_change: boolean
 }
 

@@ -1,4 +1,5 @@
 """Pure rule evaluation engine — no DB access."""
+
 import re
 import unicodedata
 import uuid
@@ -71,7 +72,15 @@ def _match_condition(condition: dict, tx: "Transaction") -> bool:
         return False
 
     # String operators
-    if op in ("contains", "not_contains", "starts_with", "ends_with", "equals", "not_equals", "regex"):
+    if op in (
+        "contains",
+        "not_contains",
+        "starts_with",
+        "ends_with",
+        "equals",
+        "not_equals",
+        "regex",
+    ):
         tx_str = _normalize(str(tx_val or ""))
         val_str = _normalize(str(value or ""))
 
@@ -192,6 +201,7 @@ def apply_rule_actions(
     *,
     skip_description: bool = False,
     assignable_category_ids: Collection[uuid.UUID] | None = None,
+    assignable_asset_currencies: dict[uuid.UUID, str] | None = None,
 ) -> bool:
     """Apply actions in-place and return the updated category-set flag.
 
@@ -248,5 +258,22 @@ def apply_rule_actions(
 
         elif op == "ignore":
             tx.is_ignored = True
+
+        elif op == "set_asset_contribution":
+            try:
+                asset_id = uuid.UUID(str(value))
+            except (ValueError, AttributeError):
+                continue
+            if (
+                tx.type == "debit"
+                and tx.status == "posted"
+                and not tx.is_ignored
+                and assignable_asset_currencies is not None
+                and assignable_asset_currencies.get(asset_id) == tx.currency
+            ):
+                tx.asset_contribution_asset_id = asset_id
+
+        elif op == "clear_asset_contribution":
+            tx.asset_contribution_asset_id = None
 
     return category_already_set

@@ -7,9 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RuleCondition(BaseModel):
-    field: str   # description, payee, notes, amount, type, account_id, payee_id, date, status
-    op: str      # contains, not_contains, equals, not_equals, starts_with, ends_with, regex, gt, gte, lt, lte
-    value: Any   # str or number depending on field
+    field: str  # description, payee, notes, amount, type, account_id, payee_id, date, status
+    op: str  # contains, not_contains, equals, not_equals, starts_with, ends_with, regex, gt, gte, lt, lte
+    value: Any  # str or number depending on field
 
     @field_validator("value")
     @classmethod
@@ -34,7 +34,7 @@ class RuleConditionGroup(BaseModel):
     stays capped at two levels, which is what the engine and editor support.
     """
 
-    op: str = "or"   # and, or
+    op: str = "or"  # and, or
     conditions: list[RuleCondition]
 
     @field_validator("op")
@@ -60,8 +60,8 @@ RuleConditionNode = Union[RuleConditionGroup, RuleCondition]
 
 
 class RuleAction(BaseModel):
-    op: str      # set_category, set_payee, set_description, append_notes, ignore
-    value: Any   # entity UUID or text depending on action
+    op: str  # set_category, set_payee, set_description, append_notes, ignore
+    value: Any  # entity UUID or text depending on action
 
 
 class RuleCreate(BaseModel):
@@ -172,6 +172,10 @@ class RulePreviewItem(BaseModel):
     current_category_name: Optional[str] = None
     new_category_id: Optional[uuid.UUID] = None
     new_category_name: Optional[str] = None
+    current_asset_contribution_asset_id: Optional[uuid.UUID] = None
+    current_asset_contribution_asset_name: Optional[str] = None
+    new_asset_contribution_asset_id: Optional[uuid.UUID] = None
+    new_asset_contribution_asset_name: Optional[str] = None
     # False when the rule matches but leaves the transaction as it is — most
     # often because it already has a category and the draft does not overwrite.
     will_change: bool

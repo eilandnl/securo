@@ -2,7 +2,7 @@ import { useRef, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { categories as categoriesApi, categoryGroups as categoryGroupsApi, rules as rulesApi, accounts as accountsApi, payees as payeesApi } from '@/lib/api'
+import { categories as categoriesApi, categoryGroups as categoryGroupsApi, rules as rulesApi, accounts as accountsApi, payees as payeesApi, assets as assetsApi } from '@/lib/api'
 import { extractApiError } from '@/lib/api-errors'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { Category, Payee, Rule, RuleAction, RuleCondition, RuleConditionNode, RuleExportPayload } from '@/types'
+import type { Asset, Category, Payee, Rule, RuleAction, RuleCondition, RuleConditionNode, RuleExportPayload } from '@/types'
 import { isConditionGroup } from '@/lib/rule-conditions'
 import { normalizeRuleMatchValue, ruleSearchText } from '@/lib/rule-match-utils'
 import { Trash2, Plus, RefreshCw, Package, Check, ArrowUpDown, ArrowUp, ArrowDown, Download, Upload, Search, Power } from 'lucide-react'
@@ -133,7 +133,7 @@ function conditionSummary(conditions: RuleConditionNode[], conditionsOp: string,
   return parts.join(joiner(conditionsOp)) || t('rules.noConditions')
 }
 
-function actionSummary(actions: RuleAction[], categories: Category[], payeesList: Payee[], t: (key: string) => string): string {
+function actionSummary(actions: RuleAction[], categories: Category[], payeesList: Payee[], assetsList: Asset[], t: (key: string) => string): string {
   return actions.map(a => {
     if (a.op === 'set_category') {
       const cat = findCategoryReference(categories, a.value)
@@ -143,6 +143,11 @@ function actionSummary(actions: RuleAction[], categories: Category[], payeesList
       const p = payeesList.find(p => p.id === a.value)
       return p ? `→ ${t('payees.payee')}: ${p.name}` : `→ ${t('payees.payee')}`
     }
+    if (a.op === 'set_asset_contribution') {
+      const asset = assetsList.find(asset => asset.id === a.value)
+      return asset ? `→ ${t('rules.linkInvestmentContribution')}: ${asset.name}` : `→ ${t('rules.linkInvestmentContribution')}`
+    }
+    if (a.op === 'clear_asset_contribution') return `→ ${t('rules.clearInvestmentContribution')}`
     if (a.op === 'set_description') {
       return `→ ${t('rules.fieldDescription')}: ${a.value}`
     }
@@ -157,6 +162,8 @@ const ACTION_FILTERS = [
   { value: 'set_description', label: 'rules.setDescription' },
   { value: 'set_payee', label: 'rules.setPayee' },
   { value: 'append_notes', label: 'rules.appendNotes' },
+  { value: 'set_asset_contribution', label: 'rules.linkInvestmentContribution' },
+  { value: 'clear_asset_contribution', label: 'rules.clearInvestmentContribution' },
   { value: 'ignore', label: 'rules.ignoreAction' },
 ] as const
 
@@ -218,6 +225,11 @@ export default function RulesPage() {
   const { data: payeesList } = useQuery({
     queryKey: ['payees'],
     queryFn: payeesApi.list,
+  })
+
+  const { data: assetsList } = useQuery({
+    queryKey: ['assets'],
+    queryFn: () => assetsApi.list(false),
   })
 
   const createMutation = useMutation({
@@ -647,7 +659,7 @@ export default function RulesPage() {
                       {conditionSummary(rule.conditions, rule.conditions_op, t, payees)}
                     </p>
                     <p className="text-xs text-emerald-600 font-medium mt-0.5">
-                      {actionSummary(rule.actions, displayCategories, payees, t)}
+                      {actionSummary(rule.actions, displayCategories, payees, assetsList ?? [], t)}
                     </p>
                   </div>
                   {canWrite && (

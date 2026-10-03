@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { sortAccountsByAbsoluteBalance, sortAccountsByDisplayName } from './account-utils'
+import {
+  excludePropertySecuredLoans,
+  sortAccountsByAbsoluteBalance,
+  sortAccountsByDisplayName,
+} from './account-utils'
+
+describe('excludePropertySecuredLoans', () => {
+  it('excludes property-backed mortgage accounts while keeping other accounts and unsecured loans', () => {
+    const accounts = [
+      { id: 'checking', type: 'checking', secured_asset_id: null },
+      { id: 'mortgage', type: 'loan', secured_asset_id: 'home' },
+      { id: 'personal-loan', type: 'loan', secured_asset_id: null },
+    ]
+
+    expect(excludePropertySecuredLoans(accounts).map((account) => account.id)).toEqual([
+      'checking',
+      'personal-loan',
+    ])
+    expect(accounts).toHaveLength(3)
+  })
+})
 
 describe('sortAccountsByDisplayName', () => {
   it('orders accounts by display name when present and falls back to name', () => {

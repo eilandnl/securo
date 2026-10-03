@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
+from app.models.asset import Asset
 from app.models.category import Category
 from app.models.payee import Payee
 from app.models.transaction import Transaction
@@ -69,7 +70,8 @@ async def test_get_rules(session: AsyncSession, test_user, test_workspace, test_
     for name in ["Rule A", "Rule B"]:
         await create_rule(
             session,
-            test_workspace.id, test_user.id,
+            test_workspace.id,
+            test_user.id,
             RuleCreate(
                 name=name,
                 conditions=[RuleCondition(field="description", op="contains", value="X")],
@@ -88,7 +90,8 @@ async def test_get_rules(session: AsyncSession, test_user, test_workspace, test_
 async def test_get_rule_by_id(session: AsyncSession, test_user, test_workspace, test_categories):
     created = await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="Lookup Rule",
             conditions=[RuleCondition(field="description", op="contains", value="X")],
@@ -110,7 +113,8 @@ async def test_get_rule_not_found(session: AsyncSession, test_user, test_workspa
 async def test_update_rule(session: AsyncSession, test_user, test_workspace, test_categories):
     rule = await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="Original",
             conditions=[RuleCondition(field="description", op="contains", value="OLD")],
@@ -144,7 +148,8 @@ async def test_update_rule_not_found(session: AsyncSession, test_user, test_work
 async def test_delete_rule(session: AsyncSession, test_user, test_workspace, test_categories):
     rule = await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="ToDelete",
             conditions=[RuleCondition(field="description", op="contains", value="X")],
@@ -166,7 +171,9 @@ async def test_delete_rule_not_found(session: AsyncSession, test_user, test_work
 
 
 @pytest.mark.asyncio
-async def test_create_duplicate_rule_raises(session: AsyncSession, test_user, test_workspace, test_categories):
+async def test_create_duplicate_rule_raises(
+    session: AsyncSession, test_user, test_workspace, test_categories
+):
     data = RuleCreate(
         name="Unique Name",
         conditions=[RuleCondition(field="description", op="contains", value="X")],
@@ -179,10 +186,13 @@ async def test_create_duplicate_rule_raises(session: AsyncSession, test_user, te
 
 
 @pytest.mark.asyncio
-async def test_update_rule_duplicate_name_raises(session: AsyncSession, test_user, test_workspace, test_categories):
+async def test_update_rule_duplicate_name_raises(
+    session: AsyncSession, test_user, test_workspace, test_categories
+):
     rule_a = await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="Name A",
             conditions=[RuleCondition(field="description", op="contains", value="X")],
@@ -191,7 +201,8 @@ async def test_update_rule_duplicate_name_raises(session: AsyncSession, test_use
     )
     await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="Name B",
             conditions=[RuleCondition(field="description", op="contains", value="Y")],
@@ -254,9 +265,7 @@ async def test_create_rule_rejects_empty_matching_regex(
             test_user.id,
             RuleCreate(
                 name=name,
-                conditions=[
-                    RuleCondition(field="description", op="regex", value=pattern)
-                ],
+                conditions=[RuleCondition(field="description", op="regex", value=pattern)],
                 actions=[RuleAction(op="append_notes", value="#unsafe")],
             ),
         )
@@ -314,6 +323,93 @@ async def test_create_rule_accepts_safe_regex(
     )
 
 
+@pytest.mark.asyncio
+async def test_investment_contribution_rule_links_only_posted_debits(
+    session: AsyncSession, test_user, test_workspace, test_account
+):
+    asset = Asset(
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        name="Meesman",
+        type="investment",
+        currency="EUR",
+        valuation_method="growth_rule",
+        purchase_date=date(2026, 1, 1),
+        purchase_price=Decimal("10000.00"),
+        growth_type="percentage",
+        growth_rate=Decimal("8"),
+        growth_frequency="yearly",
+    )
+    session.add(asset)
+    await session.flush()
+    rule = await create_rule(
+        session,
+        test_workspace.id,
+        test_user.id,
+        RuleCreate(
+            name="Meesman contribution",
+            conditions=[RuleCondition(field="description", op="contains", value="MEESMAN")],
+            actions=[RuleAction(op="set_asset_contribution", value=str(asset.id))],
+        ),
+    )
+    posted = Transaction(
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        account_id=test_account.id,
+        description="MEESMAN STORTING",
+        amount=Decimal("500.00"),
+        currency="EUR",
+        date=date(2026, 8, 1),
+        type="debit",
+        status="posted",
+        source="manual",
+    )
+    pending = Transaction(
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        account_id=test_account.id,
+        description="MEESMAN PENDING",
+        amount=Decimal("500.00"),
+        currency="EUR",
+        date=date(2026, 9, 1),
+        type="debit",
+        status="pending",
+        source="manual",
+    )
+    credit = Transaction(
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        account_id=test_account.id,
+        description="MEESMAN TERUGBETALING",
+        amount=Decimal("100.00"),
+        currency="EUR",
+        date=date(2026, 9, 2),
+        type="credit",
+        status="posted",
+        source="manual",
+    )
+    wrong_currency = Transaction(
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        account_id=test_account.id,
+        description="MEESMAN USD",
+        amount=Decimal("500.00"),
+        currency="USD",
+        date=date(2026, 9, 3),
+        type="debit",
+        status="posted",
+        source="manual",
+    )
+    session.add_all([posted, pending, credit, wrong_currency])
+    await session.flush()
+
+    assert await apply_single_rule(session, test_workspace.id, rule) == 1
+    assert posted.asset_contribution_asset_id == asset.id
+    assert pending.asset_contribution_asset_id is None
+    assert credit.asset_contribution_asset_id is None
+    assert wrong_currency.asset_contribution_asset_id is None
+    assert await apply_single_rule(session, test_workspace.id, rule) == 0
+
 
 @pytest.mark.asyncio
 async def test_create_rule_rejects_empty_matching_regex_in_condition_group(
@@ -330,18 +426,12 @@ async def test_create_rule_rejects_empty_matching_regex_in_condition_group(
                 name=name,
                 conditions_op="or",
                 conditions=[
-                    RuleCondition(
-                        field="description", op="contains", value="SAFE"
-                    ),
+                    RuleCondition(field="description", op="contains", value="SAFE"),
                     RuleConditionGroup(
                         op="or",
                         conditions=[
-                            RuleCondition(
-                                field="description", op="regex", value="foo|"
-                            ),
-                            RuleCondition(
-                                field="description", op="contains", value="OTHER"
-                            ),
+                            RuleCondition(field="description", op="regex", value="foo|"),
+                            RuleCondition(field="description", op="contains", value="OTHER"),
                         ],
                     ),
                 ],
@@ -387,9 +477,7 @@ async def test_update_rule_rejects_payee_outside_workspace(
 
 
 @pytest.mark.asyncio
-async def test_import_rules_skips_invalid_rules(
-    session: AsyncSession, test_user, test_workspace
-):
+async def test_import_rules_skips_invalid_rules(session: AsyncSession, test_user, test_workspace):
     category = Category(
         user_id=test_user.id,
         workspace_id=uuid.uuid4(),
@@ -420,13 +508,10 @@ async def test_import_rules_skips_invalid_rules(
         ]
     )
 
-    result = await import_rules(
-        session, test_workspace.id, test_user.id, payload, overwrite=True
-    )
+    result = await import_rules(session, test_workspace.id, test_user.id, payload, overwrite=True)
 
     assert result.imported == 1
     assert result.skipped == 2
-
 
 
 @pytest.mark.asyncio
@@ -437,9 +522,7 @@ async def test_import_rules_skips_unsafe_and_malformed_regexes(
         rules=[
             RuleExportItem(
                 name="Unsafe regex import",
-                conditions=[
-                    RuleCondition(field="description", op="regex", value="foo|")
-                ],
+                conditions=[RuleCondition(field="description", op="regex", value="foo|")],
                 actions=[RuleAction(op="append_notes", value="#unsafe")],
             ),
             RuleExportItem(
@@ -449,17 +532,13 @@ async def test_import_rules_skips_unsafe_and_malformed_regexes(
             ),
             RuleExportItem(
                 name="Safe regex import",
-                conditions=[
-                    RuleCondition(field="description", op="regex", value="foo|bar")
-                ],
+                conditions=[RuleCondition(field="description", op="regex", value="foo|bar")],
                 actions=[RuleAction(op="append_notes", value="#safe")],
             ),
         ]
     )
 
-    result = await import_rules(
-        session, test_workspace.id, test_user.id, payload, overwrite=True
-    )
+    result = await import_rules(session, test_workspace.id, test_user.id, payload, overwrite=True)
     persisted = {
         rule.name: rule.conditions[0]["value"]
         for rule in await get_rules(session, test_workspace.id)
@@ -474,6 +553,7 @@ async def test_import_rules_skips_unsafe_and_malformed_regexes(
         2,
         {"Safe regex import": "foo|bar"},
     )
+
 
 @pytest.mark.asyncio
 async def test_set_description_validation_and_export_compatibility(
@@ -523,17 +603,22 @@ async def test_set_description_validation_and_export_compatibility(
     assert isinstance(exported_condition, RuleCondition)
     assert exported_condition.field == "payee"
     assert exported.actions[0].op == "set_description"
+
+
 # ---------------------------------------------------------------------------
 # apply_rules_to_transaction
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_apply_rules_to_transaction(session: AsyncSession, test_user, test_workspace, test_categories):
+async def test_apply_rules_to_transaction(
+    session: AsyncSession, test_user, test_workspace, test_categories
+):
     # Create a rule matching UBER
     await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="UBER Rule",
             conditions_op="or",
@@ -574,10 +659,13 @@ async def test_apply_rules_to_transaction(session: AsyncSession, test_user, test
 
 
 @pytest.mark.asyncio
-async def test_apply_rules_no_match(session: AsyncSession, test_user, test_workspace, test_categories):
+async def test_apply_rules_no_match(
+    session: AsyncSession, test_user, test_workspace, test_categories
+):
     await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="IFOOD Only",
             conditions_op="or",
@@ -662,7 +750,8 @@ async def test_apply_all_rules(session: AsyncSession, test_user, test_workspace,
     # Create rules
     await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="UBER apply-all",
             conditions_op="or",
@@ -673,7 +762,8 @@ async def test_apply_all_rules(session: AsyncSession, test_user, test_workspace,
     )
     await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="IFOOD apply-all",
             conditions_op="or",
@@ -724,11 +814,7 @@ async def test_apply_all_rules_replaces_edited_normalization_idempotently(
         test_user.id,
         RuleCreate(
             name="Editable normalization",
-            conditions=[
-                RuleCondition(
-                    field="description", op="contains", value="AMZNPrime DE"
-                )
-            ],
+            conditions=[RuleCondition(field="description", op="contains", value="AMZNPrime DE")],
             actions=[
                 RuleAction(op="set_description", value="Amazon Prime"),
                 RuleAction(op="append_notes", value="#subscription"),
@@ -768,9 +854,7 @@ async def test_apply_all_rules_replaces_edited_normalization_idempotently(
     assert transaction.description_is_rule_managed is True
     assert transaction.notes == "#subscription"
 
-    assert await delete_rule(
-        session, rule.id, test_workspace.id
-    ) is True
+    assert await delete_rule(session, rule.id, test_workspace.id) is True
     assert await apply_all_rules(session, test_workspace.id) == 1
     await session.refresh(transaction)
     assert transaction.description == "D01-123 AMZNPrime DE changing-token"
@@ -823,9 +907,7 @@ async def test_apply_all_rules_preserves_manually_edited_import_description(
         test_user.id,
         RuleCreate(
             name="Stable payee normalization",
-            conditions=[
-                RuleCondition(field="payee", op="contains", value="IFOOD.COM")
-            ],
+            conditions=[RuleCondition(field="payee", op="contains", value="IFOOD.COM")],
             actions=[
                 RuleAction(op="set_description", value="iFood"),
                 RuleAction(op="append_notes", value="#delivery"),
@@ -950,9 +1032,7 @@ async def test_apply_single_rule_preserves_manually_edited_import_description(
         test_user.id,
         RuleCreate(
             name="Amazon Prime normalization",
-            conditions=[
-                RuleCondition(field="description", op="contains", value="AMZNPrime")
-            ],
+            conditions=[RuleCondition(field="description", op="contains", value="AMZNPrime")],
             actions=[
                 RuleAction(op="set_description", value="Amazon Prime"),
                 RuleAction(op="append_notes", value="#subscription"),
@@ -1023,26 +1103,15 @@ async def test_apply_single_rule_prefers_current_description_then_falls_back_to_
         test_user.id,
         RuleCreate(
             name="Normalize Amazon",
-            conditions=[
-                RuleCondition(
-                    field="description", op="contains", value="AMZNPrime DE"
-                )
-            ],
-            actions=[
-                RuleAction(op="set_description", value="Amazon Prime")
-            ],
+            conditions=[RuleCondition(field="description", op="contains", value="AMZNPrime DE")],
+            actions=[RuleAction(op="set_description", value="Amazon Prime")],
             apply_to_existing=False,
             priority=10,
         ),
     )
-    assert await apply_single_rule(
-        session, test_workspace.id, normalizer
-    ) == 1
+    assert await apply_single_rule(session, test_workspace.id, normalizer) == 1
     assert transaction.description == "Amazon Prime"
-    assert (
-        transaction.original_description
-        == "D01-123 AMZNPrime DE changing-token"
-    )
+    assert transaction.original_description == "D01-123 AMZNPrime DE changing-token"
 
     dependent = await create_rule(
         session,
@@ -1050,27 +1119,15 @@ async def test_apply_single_rule_prefers_current_description_then_falls_back_to_
         test_user.id,
         RuleCreate(
             name="Categorize normalized Amazon",
-            conditions=[
-                RuleCondition(
-                    field="description", op="equals", value="Amazon Prime"
-                )
-            ],
-            actions=[
-                RuleAction(
-                    op="set_category", value=str(test_categories[0].id)
-                )
-            ],
+            conditions=[RuleCondition(field="description", op="equals", value="Amazon Prime")],
+            actions=[RuleAction(op="set_category", value=str(test_categories[0].id))],
             apply_to_existing=False,
             priority=20,
         ),
     )
-    assert await apply_single_rule(
-        session, test_workspace.id, dependent
-    ) == 1
+    assert await apply_single_rule(session, test_workspace.id, dependent) == 1
     assert transaction.category_id == test_categories[0].id
-    assert await apply_single_rule(
-        session, test_workspace.id, dependent
-    ) == 0
+    assert await apply_single_rule(session, test_workspace.id, dependent) == 0
     negative = await create_rule(
         session,
         test_workspace.id,
@@ -1089,13 +1146,9 @@ async def test_apply_single_rule_prefers_current_description_then_falls_back_to_
             priority=30,
         ),
     )
-    assert await apply_single_rule(
-        session, test_workspace.id, negative
-    ) == 1
+    assert await apply_single_rule(session, test_workspace.id, negative) == 1
     assert transaction.notes == "#normalized"
-    assert await apply_single_rule(
-        session, test_workspace.id, negative
-    ) == 0
+    assert await apply_single_rule(session, test_workspace.id, negative) == 0
 
     normalizer = await update_rule(
         session,
@@ -1104,25 +1157,16 @@ async def test_apply_single_rule_prefers_current_description_then_falls_back_to_
         RuleUpdate(
             actions=[
                 RuleAction(op="set_description", value="Prime"),
-                RuleAction(
-                    op="set_category", value=str(test_categories[1].id)
-                ),
+                RuleAction(op="set_category", value=str(test_categories[1].id)),
             ]
         ),
     )
     assert normalizer is not None
-    assert await apply_single_rule(
-        session, test_workspace.id, normalizer
-    ) == 1
+    assert await apply_single_rule(session, test_workspace.id, normalizer) == 1
     assert transaction.description == "Prime"
-    assert (
-        transaction.original_description
-        == "D01-123 AMZNPrime DE changing-token"
-    )
+    assert transaction.original_description == "D01-123 AMZNPrime DE changing-token"
     assert transaction.category_id == test_categories[0].id
-    assert await apply_single_rule(
-        session, test_workspace.id, normalizer
-    ) == 0
+    assert await apply_single_rule(session, test_workspace.id, normalizer) == 0
     assert transaction.category_id == test_categories[0].id
 
 
@@ -1189,7 +1233,8 @@ async def test_apply_all_rules_preserves_manual_categories(
     # Only one rule: matches UBER
     await create_rule(
         session,
-        test_workspace.id, test_user.id,
+        test_workspace.id,
+        test_user.id,
         RuleCreate(
             name="UBER preserve-test",
             conditions_op="or",
@@ -1264,7 +1309,9 @@ async def test_install_rule_pack_skips_duplicates(session: AsyncSession, test_us
 
 
 @pytest.mark.asyncio
-async def test_install_rule_pack_works_across_languages(session: AsyncSession, test_user, test_workspace):
+async def test_install_rule_pack_works_across_languages(
+    session: AsyncSession, test_user, test_workspace
+):
     # Regression for #154: user registers in English, switches UI to pt-BR,
     # then installs the BR pack. Categories ("Transport") and template
     # language ("pt-BR" → "Transporte") would mismatch — install should
@@ -1316,7 +1363,9 @@ async def test_install_rule_pack_creates_missing_categories_when_opted_in(
 
 
 @pytest.mark.asyncio
-async def test_install_rule_pack_unknown_returns_empty(session: AsyncSession, test_user, test_workspace):
+async def test_install_rule_pack_unknown_returns_empty(
+    session: AsyncSession, test_user, test_workspace
+):
     result = await install_rule_pack(session, test_workspace.id, test_user.id, "ZZ")
     assert result.rules == []
     assert result.unresolved == 0

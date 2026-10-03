@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.transaction import Transaction
+from app.models.asset import Asset
 from app.models.transaction_attachment import TransactionAttachment
 from app.models.account import Account
 from app.models.bank_connection import BankConnection
@@ -90,7 +91,7 @@ def _apply_fx_override(transaction, amount, amount_primary=None, fx_rate_used=No
     elif amount_primary is not None:
         transaction.amount_primary = Decimal(str(amount_primary))
         if amount:
-            transaction.fx_rate_used = (Decimal(str(amount_primary)) / amount)
+            transaction.fx_rate_used = Decimal(str(amount_primary)) / amount
         else:
             transaction.fx_rate_used = Decimal("1")
     elif fx_rate_used is not None:
@@ -311,9 +312,11 @@ async def get_transactions(
     # straight to all txs.
     if bill_id is not None:
         from app.models.credit_card_bill import CreditCardBill  # local — avoid cycle
+
         bill_predicates = [Transaction.bill_id == bill_id]
         if from_date or to_date:
             from sqlalchemy import and_ as _and, not_ as _not
+
             # Resolve the active bill's due_date once so we can trust
             # cycle-math classification when Pluggy hasn't tagged a tx yet.
             active_due_subq = (
@@ -341,12 +344,14 @@ async def get_transactions(
                 # carve-out, a pending tx whose override doesn't snap to
                 # an existing bill's due_date (so bill_id stays null)
                 # gets filtered out of every closed-bill view (issue #162).
-                _not(_and(
-                    Transaction.source == "sync",
-                    Transaction.status == "pending",
-                    Transaction.effective_bill_date.is_(None),
-                    Transaction.effective_date != active_due_subq,
-                )),
+                _not(
+                    _and(
+                        Transaction.source == "sync",
+                        Transaction.status == "pending",
+                        Transaction.effective_bill_date.is_(None),
+                        Transaction.effective_date != active_due_subq,
+                    )
+                ),
             ]
             if from_date:
                 unlinked_clauses.append(filter_date_col >= from_date)
@@ -373,17 +378,20 @@ async def get_transactions(
         # /transactions list isn't reshaped by the same rule.
         if unbilled_only and to_date is not None:
             from sqlalchemy import and_ as _and
+
             window_clauses = []
             if from_date:
                 window_clauses.append(filter_date_col >= from_date)
             window_clauses.append(filter_date_col <= to_date)
-            base_query = base_query.where(or_(
-                _and(*window_clauses),
-                _and(
-                    Transaction.effective_bill_date.is_not(None),
-                    Transaction.effective_bill_date > to_date,
-                ),
-            ))
+            base_query = base_query.where(
+                or_(
+                    _and(*window_clauses),
+                    _and(
+                        Transaction.effective_bill_date.is_not(None),
+                        Transaction.effective_bill_date > to_date,
+                    ),
+                )
+            )
         else:
             if from_date:
                 base_query = base_query.where(filter_date_col >= from_date)
@@ -408,12 +416,14 @@ async def get_transactions(
         clauses = []
         for raw_tag in tags:
             tag = raw_tag if raw_tag.startswith("#") else f"#{raw_tag}"
-            clauses.extend([
-                Transaction.notes == tag,
-                Transaction.notes.ilike(f"{tag} %"),
-                Transaction.notes.ilike(f"% {tag}"),
-                Transaction.notes.ilike(f"% {tag} %"),
-            ])
+            clauses.extend(
+                [
+                    Transaction.notes == tag,
+                    Transaction.notes.ilike(f"{tag} %"),
+                    Transaction.notes.ilike(f"% {tag}"),
+                    Transaction.notes.ilike(f"% {tag} %"),
+                ]
+            )
         base_query = base_query.where(or_(*clauses))
 
     # Get total count
@@ -434,9 +444,7 @@ async def get_transactions(
         # custom) and ignored items are kept OUT of income/expense.
         pnl_filter = counts_as_pnl()
         pnl_subq = base_query.where(pnl_filter).subquery()
-        amount_norm = func.coalesce(
-            pnl_subq.c.amount_primary, pnl_subq.c.amount
-        )
+        amount_norm = func.coalesce(pnl_subq.c.amount_primary, pnl_subq.c.amount)
         summary_rows = await session.execute(
             select(
                 pnl_subq.c.type,
@@ -456,9 +464,7 @@ async def get_transactions(
         # transfer-like movement (e.g. how much was moved/invested) without
         # distorting income/expense/net.
         excl_subq = base_query.where(not_(pnl_filter)).subquery()
-        excl_amount_norm = func.coalesce(
-            excl_subq.c.amount_primary, excl_subq.c.amount
-        )
+        excl_amount_norm = func.coalesce(excl_subq.c.amount_primary, excl_subq.c.amount)
         excluded_total = await session.scalar(
             select(func.coalesce(func.sum(func.abs(excl_amount_norm)), 0))
         )
@@ -499,10 +505,12 @@ async def get_transactions(
         # Default: by date desc, with created_at as tiebreaker.
         query = base_query.order_by(default_order_col.desc(), Transaction.created_at.desc())
     else:
-        direction = (chosen_col.asc() if sort_dir == "asc" else chosen_col.desc())
+        direction = chosen_col.asc() if sort_dir == "asc" else chosen_col.desc()
         # Always tie-break on date desc + created_at desc so equal values
         # stay in a sensible order (e.g. multiple txs with the same amount).
-        query = base_query.order_by(direction, default_order_col.desc(), Transaction.created_at.desc())
+        query = base_query.order_by(
+            direction, default_order_col.desc(), Transaction.created_at.desc()
+        )
     if not skip_pagination:
         query = query.offset((page - 1) * limit).limit(limit)
 
@@ -624,9 +632,7 @@ async def _tag_shared_view(
                     break
             tx.group_id = owner_group_id
             self_mid = (
-                self_member_id_by_group.get(owner_group_id)
-                if owner_group_id is not None
-                else None
+                self_member_id_by_group.get(owner_group_id) if owner_group_id is not None else None
             )
             owner_split = (
                 next(
@@ -925,13 +931,8 @@ async def create_transfer(
         raise ValueError("Destination account not found")
 
     is_cross_currency = from_account.currency != to_account.currency
-    if (
-        not is_cross_currency
-        and data.destination_amount is not None
-    ):
-        raise ValueError(
-            "Destination amount must be absent for same-currency transfers."
-        )
+    if not is_cross_currency and data.destination_amount is not None:
+        raise ValueError("Destination amount must be absent for same-currency transfers.")
 
     transfer_pair_id = uuid.uuid4()
     from decimal import Decimal, ROUND_HALF_UP
@@ -1066,13 +1067,11 @@ async def get_transfer_candidates(
         date_diff = abs((tx.date - anchor.date).days)
         if anchor_amount_primary is not None and tx.amount_primary is not None:
             amount_diff = abs(
-                Decimal(str(tx.amount_primary)).copy_abs()
-                - anchor_amount_primary.copy_abs()
+                Decimal(str(tx.amount_primary)).copy_abs() - anchor_amount_primary.copy_abs()
             )
         else:
             amount_diff = abs(
-                Decimal(str(tx.amount)).copy_abs()
-                - Decimal(str(anchor.amount)).copy_abs()
+                Decimal(str(tx.amount)).copy_abs() - Decimal(str(anchor.amount)).copy_abs()
             )
         return (date_diff, amount_diff)
 
@@ -1290,6 +1289,7 @@ async def _resync_bill_link_from_override(
       `creditCardMetadata.billId` in raw_data, if recoverable; else null.
     """
     from app.models.credit_card_bill import CreditCardBill  # local: avoid circular
+
     if account is None or account.type != "credit_card":
         return
     override = transaction.effective_bill_date
@@ -1427,16 +1427,11 @@ async def _apply_update_to_row(
     heals_fx_on_post = (
         tx.status == "pending"
         and update_data.get("status") == "posted"
-        and (
-            tx.amount_primary is None
-            or tx.fx_rate_used is None
-            or tx.fx_rate_used == 1
-        )
+        and (tx.amount_primary is None or tx.fx_rate_used is None or tx.fx_rate_used == 1)
     )
 
     description_changed = (
-        "description" in update_data
-        and update_data["description"] != tx.description
+        "description" in update_data and update_data["description"] != tx.description
     )
     if description_changed:
         _preserve_original_description(tx)
@@ -1501,8 +1496,11 @@ async def _apply_update_to_row(
                     if keeps_own_amount:
                         continue
                     converted, _ = await fx_convert(
-                        session, Decimal(str(tx.amount)),
-                        tx.currency, paired_tx.currency, tx.date,
+                        session,
+                        Decimal(str(tx.amount)),
+                        tx.currency,
+                        paired_tx.currency,
+                        tx.date,
                     )
                     paired_tx.amount = converted
                 elif key != "amount":
@@ -1511,6 +1509,7 @@ async def _apply_update_to_row(
                         and update_data[key] != paired_tx.description
                     ):
                         _preserve_original_description(paired_tx)
+                        paired_tx.description_is_rule_managed = False
                         paired_tx.description_is_rule_managed = False
                     setattr(paired_tx, key, update_data[key])
                 else:
@@ -1581,6 +1580,35 @@ async def update_transaction(
     splits_payload = data.splits if "splits" in update_data else None
     update_data.pop("splits", None)
 
+    previous_contribution_asset_id = transaction.asset_contribution_asset_id
+    next_contribution_asset_id = update_data.get(
+        "asset_contribution_asset_id", previous_contribution_asset_id
+    )
+    if (
+        next_contribution_asset_id is not None
+        and next_contribution_asset_id != previous_contribution_asset_id
+    ):
+        contribution_asset = await session.scalar(
+            select(Asset).where(
+                Asset.id == next_contribution_asset_id,
+                Asset.workspace_id == workspace_id,
+                Asset.type == "investment",
+                Asset.valuation_method == "growth_rule",
+                Asset.growth_type == "percentage",
+                Asset.growth_rate.is_not(None),
+                Asset.is_archived.is_(False),
+            )
+        )
+        if contribution_asset is None:
+            raise ValueError("Eligible investment asset not found")
+        next_currency = update_data.get("currency", transaction.currency)
+        next_type = update_data.get("type", transaction.type)
+        next_status = update_data.get("status", transaction.status)
+        if contribution_asset.currency != next_currency:
+            raise ValueError("Transaction and investment asset currencies must match")
+        if next_type != "debit" or next_status != "posted":
+            raise ValueError("Only posted debit transactions can contribute to an investment")
+
     # Verify the new account belongs to the workspace before touching the
     # row. When changing the account on one side of a transfer pair,
     # refuse to collide with the paired transaction's account (a transfer
@@ -1610,7 +1638,9 @@ async def update_transaction(
             )
             paired_tx = paired_result.scalar_one_or_none()
             if paired_tx and paired_tx.account_id == new_account_id:
-                raise ValueError("Cannot move transfer to the same account as its paired transaction")
+                raise ValueError(
+                    "Cannot move transfer to the same account as its paired transaction"
+                )
 
     if "category_id" in update_data:
         await _ensure_category_in_workspace(session, workspace_id, update_data["category_id"])
@@ -1647,9 +1677,7 @@ async def update_transaction(
         rows = await _get_series_transactions(
             session, workspace_id, transaction, apply_to, for_update=True
         )
-        scoped_update = {
-            k: v for k, v in update_data.items() if k in installment_scoped_fields
-        }
+        scoped_update = {k: v for k, v in update_data.items() if k in installment_scoped_fields}
 
     # The user can remove the breakdown first, edit the payment, then enter
     # the corrected split. Principal entries are owned by their breakdown.
@@ -1700,6 +1728,19 @@ async def update_transaction(
         await session.flush()
         await _resync_installment_series_total(session, workspace_id, transaction)
 
+    affected_contribution_asset_ids = {
+        previous_contribution_asset_id,
+        transaction.asset_contribution_asset_id,
+    } - {None}
+    if affected_contribution_asset_ids and (
+        previous_contribution_asset_id != transaction.asset_contribution_asset_id
+        or bool({"amount", "date", "type", "status", "is_ignored", "currency"} & update_data.keys())
+    ):
+        from app.services.asset_contribution_service import recalculate_asset_contributions
+
+        await session.flush()
+        for asset_id in affected_contribution_asset_ids:
+            await recalculate_asset_contributions(session, asset_id, workspace_id)
     await session.commit()
     await session.refresh(transaction, ["category", "payee_entity", "splits"])
     return transaction
@@ -1814,11 +1855,7 @@ async def bulk_remove_tags(
         original = tx.notes
         updated = original
         for tag in normalized_tags:
-            pattern = (
-                r"(?:(?<=^)|(?<=[^\wÀ-ž-]))"
-                + re.escape(tag)
-                + r"(?=$|[^\wÀ-ž-])"
-            )
+            pattern = r"(?:(?<=^)|(?<=[^\wÀ-ž-]))" + re.escape(tag) + r"(?=$|[^\wÀ-ž-])"
             updated = re.sub(pattern, "", updated)
         # Collapse consecutive whitespace left behind by removed tags.
         updated = re.sub(r"\s{2,}", " ", updated).strip()
@@ -1859,9 +1896,7 @@ async def bulk_add_to_group(
 
     # The caller may own the group OR be a linked member of it.
     linked_group_ids = (
-        select(GroupMember.group_id)
-        .where(GroupMember.linked_user_id == user_id)
-        .distinct()
+        select(GroupMember.group_id).where(GroupMember.linked_user_id == user_id).distinct()
     )
     group_result = await session.execute(
         select(Group).where(
@@ -1996,6 +2031,9 @@ async def delete_transaction(
 
     tx_ids_to_cleanup: list[uuid.UUID] = []
     paired_txs: list[Transaction] = []
+    affected_contribution_asset_ids = {
+        row.asset_contribution_asset_id for row in rows if row.asset_contribution_asset_id
+    }
     for row in rows:
         tx_ids_to_cleanup.append(row.id)
         if row.transfer_pair_id:
@@ -2009,6 +2047,8 @@ async def delete_transaction(
             if paired_tx and paired_tx.id not in tx_ids_to_cleanup:
                 tx_ids_to_cleanup.append(paired_tx.id)
                 paired_txs.append(paired_tx)
+                if paired_tx.asset_contribution_asset_id:
+                    affected_contribution_asset_ids.add(paired_tx.asset_contribution_asset_id)
 
     await cleanup_attachment_files(session, tx_ids_to_cleanup)
 
@@ -2016,6 +2056,11 @@ async def delete_transaction(
         await session.delete(paired_tx)
     for row in rows:
         await session.delete(row)
+    await session.flush()
+    from app.services.asset_contribution_service import recalculate_asset_contributions
+
+    for asset_id in affected_contribution_asset_ids:
+        await recalculate_asset_contributions(session, asset_id, workspace_id)
     await session.commit()
     return True
 
@@ -2028,8 +2073,12 @@ async def bulk_delete_transactions(
     from app.services.attachment_service import cleanup_attachment_files
 
     result = await session.execute(
-        select(Transaction.id, Transaction.transfer_pair_id, Transaction.source)
-        .where(
+        select(
+            Transaction.id,
+            Transaction.transfer_pair_id,
+            Transaction.source,
+            Transaction.asset_contribution_asset_id,
+        ).where(
             Transaction.id.in_(transaction_ids),
             Transaction.workspace_id == workspace_id,
         )
@@ -2042,25 +2091,30 @@ async def bulk_delete_transactions(
 
     valid_ids = [row[0] for row in transactions]
     transfer_pair_ids = {row[1] for row in transactions if row[1]}
+    affected_contribution_asset_ids = {row[3] for row in transactions if row[3]}
 
     paired_ids = []
     if transfer_pair_ids:
         paired_result = await session.execute(
-            select(Transaction.id)
-            .where(
+            select(Transaction.id, Transaction.asset_contribution_asset_id).where(
                 Transaction.transfer_pair_id.in_(transfer_pair_ids),
                 Transaction.id.notin_(valid_ids),
                 Transaction.workspace_id == workspace_id,
             )
         )
-        paired_ids = [row[0] for row in paired_result.all()]
+        paired_rows = paired_result.all()
+        paired_ids = [row[0] for row in paired_rows]
+        affected_contribution_asset_ids.update(row[1] for row in paired_rows if row[1])
 
     # Storage files must go before the rows: the DB cascade removes the
     # attachment records, and after that their storage keys are unreachable.
     await cleanup_attachment_files(session, valid_ids + paired_ids)
 
-    await session.execute(
-        delete(Transaction).where(Transaction.id.in_(valid_ids + paired_ids))
-    )
+    await session.execute(delete(Transaction).where(Transaction.id.in_(valid_ids + paired_ids)))
+    await session.flush()
+    from app.services.asset_contribution_service import recalculate_asset_contributions
+
+    for asset_id in affected_contribution_asset_ids:
+        await recalculate_asset_contributions(session, asset_id, workspace_id)
     await session.commit()
     return len(valid_ids)

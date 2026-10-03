@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { getAccountName, sortAccountsByDisplayName } from '@/lib/account-utils'
 import { isInvalidDescriptionAction, parseRulePriority, previewableActions } from '@/lib/rule-form-utils'
-import { rules as rulesApi } from '@/lib/api'
+import { assets as assetsApi, rules as rulesApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/format'
 import { useDisplayLocale, useDateLocale } from '@/hooks/use-display-locale'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
@@ -24,6 +24,7 @@ import { flattenConditions, isConditionGroup } from '@/lib/rule-conditions'
 import type {
   Category,
   CategoryGroup,
+  Asset,
   Payee,
   Rule,
   RuleCondition,
@@ -370,13 +371,23 @@ function RulePreviewPanel({
                         <td className="py-1.5">
                           {item.will_change ? (
                             <span className="flex items-center gap-1">
-                              <span className="truncate">
-                                {item.current_category_name ?? t('transactions.uncategorized')}
-                              </span>
-                              <ArrowRight size={11} className="shrink-0 text-muted-foreground" />
-                              <span className="truncate font-medium text-emerald-600">
-                                {item.new_category_name ?? t('transactions.uncategorized')}
-                              </span>
+                              {item.new_asset_contribution_asset_id !== item.current_asset_contribution_asset_id ? (
+                                <span className="truncate font-medium text-emerald-600">
+                                  {item.new_asset_contribution_asset_name
+                                    ? `${t('rules.linkInvestmentContribution')}: ${item.new_asset_contribution_asset_name}`
+                                    : t('rules.clearInvestmentContribution')}
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="truncate">
+                                    {item.current_category_name ?? t('transactions.uncategorized')}
+                                  </span>
+                                  <ArrowRight size={11} className="shrink-0 text-muted-foreground" />
+                                  <span className="truncate font-medium text-emerald-600">
+                                    {item.new_category_name ?? t('transactions.uncategorized')}
+                                  </span>
+                                </>
+                              )}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1">
@@ -441,6 +452,19 @@ export function RuleDialog({
 }) {
   const { t } = useTranslation()
   const sortedAccounts = useMemo(() => sortAccountsByDisplayName(accounts), [accounts])
+  const { data: assetsList = [] } = useQuery({
+    queryKey: ['assets'],
+    queryFn: () => assetsApi.list(false),
+    enabled: open,
+  })
+  const contributionAssets = useMemo(
+    () => assetsList.filter((asset: Asset) => asset.type === 'investment'
+      && asset.valuation_method === 'growth_rule'
+      && asset.growth_type === 'percentage'
+      && asset.growth_rate !== null
+      && !asset.is_archived),
+    [assetsList],
+  )
 
   const defaultConditions: RuleConditionNode[] = initialData?.conditions ?? rule?.conditions ?? [newCondition()]
   const defaultActions: RuleAction[] = initialData?.actions ?? rule?.actions as RuleAction[] ?? [{ op: 'set_category', value: '' }]
@@ -690,12 +714,35 @@ export function RuleDialog({
                         <option value="set_description">{t('rules.setDescription')}</option>
                         <option value="set_payee">{t('rules.setPayee')}</option>
                         <option value="append_notes">{t('rules.appendNotes')}</option>
+                        <option value="set_asset_contribution">{t('rules.linkInvestmentContribution')}</option>
+                        <option value="clear_asset_contribution">{t('rules.clearInvestmentContribution')}</option>
                         <option value="ignore">{t('rules.ignoreAction')}</option>
                       </select>
                       {action.op === 'ignore' ? (
                         <span className="min-w-0 text-sm italic text-muted-foreground sm:w-0 sm:flex-1">
                           {t('rules.ignoreActionHint')}
                         </span>
+                      ) : action.op === 'clear_asset_contribution' ? (
+                        <span className="min-w-0 text-sm italic text-muted-foreground sm:w-0 sm:flex-1">
+                          {t('rules.clearInvestmentContributionHint')}
+                        </span>
+                      ) : action.op === 'set_asset_contribution' ? (
+                        <>
+                          <select
+                            className={`${SELECT_CLASS} w-full min-w-0 sm:w-0 sm:flex-1`}
+                            value={action.value}
+                            onChange={(e) => updateAction(i, 'value', e.target.value)}
+                            required
+                          >
+                            <option value="">{t('rules.selectInvestmentAsset')}</option>
+                            {contributionAssets.map(asset => (
+                              <option key={asset.id} value={asset.id}>{asset.name} ({asset.currency})</option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-muted-foreground sm:col-span-2">
+                            {t('rules.investmentContributionHint')}
+                          </p>
+                        </>
                       ) : action.op === 'set_category' ? (
                         <div className="w-full min-w-0 sm:w-0 sm:flex-1">
                           <CategorySelect
