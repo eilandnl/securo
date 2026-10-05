@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { navItems, visibleNavItems, type NavItem } from './nav-items'
+import { isNavItemActive, navItems, visibleNavItems, type NavItem } from './nav-items'
 import { MODULE_IDS, type ModuleId } from './modules'
 
 const all = () => true
@@ -40,17 +40,31 @@ describe('nav catalog', () => {
 
   it('has a link for every module in the catalog', () => {
     const covered = navItems.filter((i) => i.type === 'link').map((i) => i.module)
-    expect([...covered].sort()).toEqual([...MODULE_IDS].sort())
+    expect([...new Set(covered)].sort()).toEqual([...MODULE_IDS].sort())
   })
 
-  it('gives every link a distinct module', () => {
+  it('allows overview and settings links for the budgets module only', () => {
     const covered = navItems.filter((i) => i.type === 'link').map((i) => i.module)
-    expect(new Set(covered).size).toBe(covered.length)
+    const repeated = covered.filter((module, index) => covered.indexOf(module) !== index)
+    expect(repeated).toEqual(['budgets'])
+  })
+})
+
+describe('isNavItemActive', () => {
+  it('does not activate similarly prefixed destinations together', () => {
+    expect(isNavItemActive('/budgets', '/budget')).toBe(false)
+    expect(isNavItemActive('/budget', '/budgets')).toBe(false)
+    expect(isNavItemActive('/budget', '/budget')).toBe(true)
+  })
+
+  it('keeps nested destinations active and treats home as exact', () => {
+    expect(isNavItemActive('/transactions/abc', '/transactions')).toBe(true)
+    expect(isNavItemActive('/budget', '/')).toBe(false)
   })
 })
 
 describe('visibleNavItems', () => {
-  it('renders a personal workspace exactly as before modules existed', () => {
+  it('renders both budget destinations in a personal workspace', () => {
     const personal = visibleNavItems(navItems, (id) => PERSONAL_MODULES.includes(id))
     expect(linkKeys(personal)).toEqual([
       'transactions',
@@ -58,7 +72,8 @@ describe('visibleNavItems', () => {
       'import',
       'reports',
       'assets',
-      'budgets',
+      'budget',
+      'budgetSettings',
       'goals',
       'recurring',
       'categories',

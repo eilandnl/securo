@@ -43,3 +43,25 @@ class BudgetVsActual(BaseModel):
     projected_prev_month_amount: Decimal = Decimal("0")
     percentage_used: Optional[float] = None
     is_recurring: bool = False
+
+
+class BudgetCategoryForecast(BaseModel):
+    category_id: uuid.UUID
+    # Expected month-end spending: spent so far plus everything still to come.
+    expected: Decimal
+    # Scheduled transactions or unpaid recurring charges still to come.
+    fixed_upcoming: Decimal
+    # Net spending per day of the month so far (index 0 is day 1).
+    daily_actual: list[Decimal]
+    # Spending expected per day for the rest of the month (index 0 is day 1).
+    daily_upcoming: list[Decimal]
+    # Whether part of the forecast was learned from earlier months.
+    from_history: bool = False
+
+
+class BudgetForecast(BaseModel):
+    month: _Date
+    days_in_month: int
+    days_elapsed: int
+    learned_months: int
+    categories: list[BudgetCategoryForecast]

@@ -39,7 +39,7 @@ import { ShellLogo } from '@/components/shell-logo'
 import { UpdateAvailableBanner } from '@/components/update-available-banner'
 import { UpdateAvailableDialog } from '@/components/update-available-dialog'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
-import { navItems, visibleNavItems, type NavItem } from '@/lib/nav-items'
+import { isNavItemActive, navItems, visibleNavItems, type NavItem } from '@/lib/nav-items'
 import {
   Menu,
   ChevronLeft,
@@ -435,10 +435,7 @@ export function AppLayout() {
                 )
               }
 
-              const isActive =
-                item.path === '/'
-                  ? location.pathname === '/'
-                  : location.pathname.startsWith(item.path)
+              const isActive = isNavItemActive(location.pathname, item.path)
               const Icon = item.icon
               const showQuickAdd = item.key === 'transactions' && canWrite
               const link = (
