@@ -1584,10 +1584,7 @@ async def update_transaction(
     next_contribution_asset_id = update_data.get(
         "asset_contribution_asset_id", previous_contribution_asset_id
     )
-    if (
-        next_contribution_asset_id is not None
-        and next_contribution_asset_id != previous_contribution_asset_id
-    ):
+    if next_contribution_asset_id is not None:
         contribution_asset = await session.scalar(
             select(Asset).where(
                 Asset.id == next_contribution_asset_id,
@@ -1599,15 +1596,25 @@ async def update_transaction(
                 Asset.is_archived.is_(False),
             )
         )
+        invalid_link_reason = None
         if contribution_asset is None:
-            raise ValueError("Eligible investment asset not found")
-        next_currency = update_data.get("currency", transaction.currency)
-        next_type = update_data.get("type", transaction.type)
-        next_status = update_data.get("status", transaction.status)
-        if contribution_asset.currency != next_currency:
-            raise ValueError("Transaction and investment asset currencies must match")
-        if next_type != "debit" or next_status != "posted":
-            raise ValueError("Only posted debit transactions can contribute to an investment")
+            invalid_link_reason = "Eligible investment asset not found"
+        elif contribution_asset.currency != update_data.get("currency", transaction.currency):
+            invalid_link_reason = "Transaction and investment asset currencies must match"
+        elif (
+            update_data.get("type", transaction.type) != "debit"
+            or update_data.get("status", transaction.status) != "posted"
+        ):
+            invalid_link_reason = (
+                "Only posted debit transactions can contribute to an investment"
+            )
+        if invalid_link_reason:
+            if next_contribution_asset_id != previous_contribution_asset_id:
+                raise ValueError(invalid_link_reason)
+            # Keep the relation valid if an already-linked transaction is
+            # edited into a credit, pending item, or a different currency.
+            update_data["asset_contribution_asset_id"] = None
+            next_contribution_asset_id = None
 
     # Verify the new account belongs to the workspace before touching the
     # row. When changing the account on one side of a transfer pair,
@@ -1679,6 +1686,34 @@ async def update_transaction(
         )
         scoped_update = {k: v for k, v in update_data.items() if k in installment_scoped_fields}
 
+    previous_contribution_asset_ids = {
+        row.id: row.asset_contribution_asset_id for row in rows
+    }
+    clear_contribution_link_ids: set[uuid.UUID] = set()
+    if scoped_update:
+        for row in rows:
+            if row.id == transaction.id or row.asset_contribution_asset_id is None:
+                continue
+            contribution_asset = await session.scalar(
+                select(Asset).where(
+                    Asset.id == row.asset_contribution_asset_id,
+                    Asset.workspace_id == workspace_id,
+                    Asset.type == "investment",
+                    Asset.valuation_method == "growth_rule",
+                    Asset.growth_type == "percentage",
+                    Asset.growth_rate.is_not(None),
+                    Asset.is_archived.is_(False),
+                )
+            )
+            row_currency = scoped_update.get("currency", row.currency)
+            row_type = scoped_update.get("type", row.type)
+            if (
+                contribution_asset is None
+                or contribution_asset.currency != row_currency
+                or row_type != "debit"
+            ):
+                clear_contribution_link_ids.add(row.id)
+
     # The user can remove the breakdown first, edit the payment, then enter
     # the corrected split. Principal entries are owned by their breakdown.
     for row in rows:
@@ -1704,14 +1739,16 @@ async def update_transaction(
         # their own date, status, bill-cycle, and split bookkeeping).
         is_anchor = row.id == transaction.id
         if is_anchor:
-            row_update = update_data
+            row_update = dict(update_data)
             row_splits = splits_payload
         else:
             # Non-anchor rows only exist in the scoped branch above, where
             # scoped_update is always built.
             assert scoped_update is not None
-            row_update = scoped_update
+            row_update = dict(scoped_update)
             row_splits = None
+        if row.id in clear_contribution_link_ids:
+            row_update["asset_contribution_asset_id"] = None
         await _apply_update_to_row(
             session,
             user_id,
@@ -1729,12 +1766,23 @@ async def update_transaction(
         await _resync_installment_series_total(session, workspace_id, transaction)
 
     affected_contribution_asset_ids = {
-        previous_contribution_asset_id,
-        transaction.asset_contribution_asset_id,
-    } - {None}
+        asset_id
+        for asset_id in (
+            *previous_contribution_asset_ids.values(),
+            *(row.asset_contribution_asset_id for row in rows),
+        )
+        if asset_id is not None
+    }
+    contribution_links_changed = any(
+        row.asset_contribution_asset_id != previous_contribution_asset_ids[row.id]
+        for row in rows
+    )
     if affected_contribution_asset_ids and (
-        previous_contribution_asset_id != transaction.asset_contribution_asset_id
-        or bool({"amount", "date", "type", "status", "is_ignored", "currency"} & update_data.keys())
+        contribution_links_changed
+        or bool(
+            {"amount", "date", "type", "status", "is_ignored", "currency"}
+            & update_data.keys()
+        )
     ):
         from app.services.asset_contribution_service import recalculate_asset_contributions
 
@@ -1976,7 +2024,15 @@ async def toggle_ignore_transaction(
         raise ValueError("Edit the mortgage breakdown on its bank payment instead")
     if await _has_mortgage_breakdown(session, workspace_id, transaction.id):
         raise ValueError("Remove the mortgage breakdown before changing this payment")
+    contribution_asset_id = transaction.asset_contribution_asset_id
     transaction.is_ignored = not transaction.is_ignored
+    if contribution_asset_id is not None:
+        from app.services.asset_contribution_service import recalculate_asset_contributions
+
+        await session.flush()
+        await recalculate_asset_contributions(
+            session, contribution_asset_id, workspace_id
+        )
     await session.commit()
     await session.refresh(transaction)
     return transaction
