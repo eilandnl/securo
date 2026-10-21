@@ -34,10 +34,22 @@ export function formatNetWorthAxisTick(
   const magnitude = Math.abs(value)
   const compactUnit = magnitude >= 1_000_000 ? 1_000_000 : magnitude >= 1_000 ? 1_000 : 1
   if (tickInterval < compactUnit / 10) {
+    const currencyFormat = new Intl.NumberFormat(locale, { style: 'currency', currency })
+    const currencyDigits = currencyFormat.resolvedOptions().maximumFractionDigits ?? 2
+    const intervalDigits = Math.max(
+      0,
+      Math.ceil(-Math.log10(Math.max(tickInterval / 2, Number.EPSILON))),
+    )
+    const fractionDigits = Math.min(
+      6,
+      tickInterval < 1 ? Math.max(currencyDigits, intervalDigits) : Math.min(currencyDigits, intervalDigits),
+    )
+    const minimumFractionDigits = currencyFormat.resolvedOptions().minimumFractionDigits ?? 0
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: Math.min(minimumFractionDigits, fractionDigits),
+      maximumFractionDigits: fractionDigits,
     }).format(value)
   }
 

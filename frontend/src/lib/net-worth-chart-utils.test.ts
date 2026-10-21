@@ -44,6 +44,18 @@ describe('formatNetWorthAxisTick', () => {
     expect(formatNetWorthAxisTick(1_000_040, domain)).toBe('$1,000,040')
   })
 
+  it('preserves cents when the tick interval is below one currency unit', () => {
+    const domain: [number, number] = [1.005, 1.045]
+    expect(formatNetWorthAxisTick(1.01, domain)).toBe('$1.01')
+    expect(formatNetWorthAxisTick(1.04, domain)).toBe('$1.04')
+  })
+
+  it('distinguishes irregular sub-cent ticks on a narrow currency scale', () => {
+    const domain: [number, number] = [1, 1.05]
+    expect(formatNetWorthAxisTick(1.045, domain)).toBe('$1.045')
+    expect(formatNetWorthAxisTick(1.05, domain)).toBe('$1.05')
+  })
+
   it('uses compact currency labels when the scale supports them', () => {
     expect(formatNetWorthAxisTick(46_500, [45_000, 52_000])).toBe('$46.5K')
   })
