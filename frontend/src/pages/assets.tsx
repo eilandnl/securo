@@ -59,7 +59,6 @@ import { useWorkspace } from '@/contexts/workspace-context'
 import { useCollectionFilter } from '@/contexts/collection-filter-context'
 import { getAssetProfit } from '@/lib/asset-profit'
 import { getLoanHistoryDebt, getNetAssetValuePrimary } from '@/lib/property-equity'
-import { getPortfolioShare, getPortfolioTotalPrimary } from '@/lib/asset-portfolio-share'
 import { formatTransactionTotal, getTransactionTotalCurrency } from '@/lib/asset-transaction-total'
 import { formatCurrency } from '@/lib/format'
 
