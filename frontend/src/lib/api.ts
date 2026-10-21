@@ -17,6 +17,7 @@ import type {
   AccountSummary,
   Collection,
   CreditCardBill,
+  DescriptionSuggestion,
   Transaction,
   Payee,
   PayeeSummary,
@@ -482,7 +483,7 @@ export const accounts = {
     const { data } = await api.get(`/accounts/${id}/summary`, { params: { from, to, bill_id: billId, unbilled_only: unbilledOnly || undefined } })
     return data
   },
-  balanceHistory: async (id: string, from?: string, to?: string): Promise<{ date: string; balance: number; balance_primary?: number }[]> => {
+  balanceHistory: async (id: string, from?: string, to?: string): Promise<{ date: string; balance: number; balance_primary?: number; fx_fallback?: boolean }[]> => {
     const { data } = await api.get(`/accounts/${id}/balance-history`, { params: { from, to } })
     return data
   },
@@ -548,6 +549,10 @@ export const transactions = {
   },
   get: async (id: string): Promise<Transaction> => {
     const { data } = await api.get(`/transactions/${id}`)
+    return data
+  },
+  descriptionSuggestions: async (q: string, limit = 8): Promise<DescriptionSuggestion[]> => {
+    const { data } = await api.get('/transactions/description-suggestions', { params: { q, limit } })
     return data
   },
   create: async (transaction: TransactionEditPayload): Promise<Transaction> => {
@@ -926,8 +931,8 @@ export interface GroupSettlementPayload {
 }
 
 export const groups = {
-  list: async (includeArchived = false): Promise<Group[]> => {
-    const { data } = await api.get('/groups', { params: { include_archived: includeArchived } })
+  list: async (includeArchived = false, filters: { q?: string; status?: 'active' | 'archived' | 'all' } = {}): Promise<Group[]> => {
+    const { data } = await api.get('/groups', { params: { include_archived: includeArchived, ...filters } })
     return data
   },
   get: async (id: string): Promise<Group> => {
