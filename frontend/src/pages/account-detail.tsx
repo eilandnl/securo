@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, ArrowLeftRight, CalendarClock, ChevronLeft, ChevronRight, Clock, EyeClosed, HelpCircle, Paperclip, Pencil, Plus, X } from 'lucide-react'
 import { MobileTransactionRow } from '@/components/mobile-transaction-row'
+import { transactionDescription } from '@/lib/transaction-description'
 import { CategoryIcon } from '@/components/category-icon'
 import { ProjectedTransactionBadge } from '@/components/projected-transaction-badge'
 import { TransactionDialog, type TransactionSavePayload } from '@/components/transaction-dialog'
@@ -633,8 +634,12 @@ export default function AccountDetailPage() {
   // Whether to use primary currency amounts (for foreign-currency accounts with toggle, or domestic accounts with foreign txs)
   const isCreditCard = account?.type === 'credit_card'
   const isForeignCurrency = account ? account.currency !== userCurrency : false
-  const usePrimary = !isForeignCurrency || showPrimary
-  const displayCurrency = (isForeignCurrency && !showPrimary) ? (account?.currency || userCurrency) : userCurrency
+  // No real FX rate: the summary leaves the *_primary fields unset, so stay on
+  // the account's own currency instead of labelling native amounts as converted.
+  const fxFallback = summary?.fx_fallback === true
+  const primaryShown = showPrimary && !fxFallback
+  const usePrimary = !isForeignCurrency || primaryShown
+  const displayCurrency = (isForeignCurrency && !primaryShown) ? (account?.currency || userCurrency) : userCurrency
 
   // Pseudo-transaction rows for non-materialized recurring projections.
   // Virtual: rendered with a "Previsão" badge, non-clickable, and merged
@@ -1048,13 +1053,15 @@ export default function AccountDetailPage() {
             <div className="ml-auto inline-flex rounded-lg border border-border bg-muted p-0.5 text-xs font-medium">
               <button
                 onClick={() => setShowPrimary(false)}
-                className={`px-3 py-1.5 rounded-md transition-colors ${!showPrimary ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`px-3 py-1.5 rounded-md transition-colors ${!primaryShown ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 {account.currency}
               </button>
               <button
                 onClick={() => setShowPrimary(true)}
-                className={`px-3 py-1.5 rounded-md transition-colors ${showPrimary ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                disabled={fxFallback}
+                title={fxFallback ? t('transactions.fxFallbackBanner') : undefined}
+                className={`px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${primaryShown ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 {userCurrency}
               </button>
@@ -1150,7 +1157,7 @@ export default function AccountDetailPage() {
         // can lag any charges added since the last sync). Otherwise use the
         // summary endpoint's monthly_expenses now nets refund credits against
         // debits for CC accounts (matches the bank's bill total).
-        const billTotal = (showPrimary ? summary?.projected_expenses_primary : undefined) ?? summary?.projected_expenses ?? summary?.monthly_expenses ?? 0
+        const billTotal = (primaryShown ? summary?.projected_expenses_primary : undefined) ?? summary?.projected_expenses ?? summary?.monthly_expenses ?? 0
         // "Default cycle" = the bill the user is here to pay (next due). The
         // AGORA tag on Limite disponível only shows when viewing a different cycle.
         const isDefaultCycle =
@@ -1311,7 +1318,7 @@ export default function AccountDetailPage() {
         // currently being viewed. For the current cycle this matches the "current
         // open balance" since nothing has been paid yet; for past cycles it shows
         // that month's burn rate against the (current) limit.
-        const cycleBillTotal = (showPrimary ? summary?.projected_expenses_primary : undefined) ?? summary?.projected_expenses ?? summary?.monthly_expenses ?? 0
+        const cycleBillTotal = (primaryShown ? summary?.projected_expenses_primary : undefined) ?? summary?.projected_expenses ?? summary?.monthly_expenses ?? 0
         const utilized = limit != null ? cycleBillTotal : null
         const rawPct = limit != null && limit > 0 && utilized != null ? (utilized / limit) * 100 : null
         const pct = rawPct != null ? Math.min(100, rawPct) : null
@@ -1575,6 +1582,7 @@ export default function AccountDetailPage() {
                       userCurrency={userCurrency}
                       onSelect={() => {}}
                       showPayee
+                      localizeOpeningBalance
                       onClick={(clickedTx) => {
                         // The opening-balance row is synthetic; the desktop
                         // table makes it non-clickable and mobile must match.
@@ -1623,13 +1631,8 @@ export default function AccountDetailPage() {
                         </td>
                         <td className="px-3 sm:px-4 py-3 w-full max-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-semibold text-foreground text-sm truncate">{tx.description}</span>
+                            <span className="font-semibold text-foreground text-sm truncate">{transactionDescription(tx.description, tx.source, t)}</span>
                             <div className="flex items-center gap-1 shrink-0">
-                            {isOpening && (
-                              <span className="ml-2 text-xs text-muted-foreground font-normal border border-border rounded px-1.5 py-0.5">
-                                {t('accounts.openingBalance')}
-                              </span>
-                            )}
                             {isTransfer && (
                               <span className="ml-2 inline-flex items-center gap-1 text-xs text-blue-600 font-normal bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
                                 <ArrowLeftRight className="h-3 w-3" />

@@ -20,16 +20,19 @@ from app.schemas.rule import (
     RulePreviewResponse,
     RuleUpdate,
 )
-
+from app.services.category_defaults import (
+    CATEGORY_TO_GROUP,
+    DEFAULT_CATEGORIES,
+    DEFAULT_GROUPS,
+    localized_name,
+    name_variants,
+)
 from app.services.category_service import get_assignable_category_ids
-
 from app.services.rule_engine import (
     apply_rule_actions,
     compile_rule_regex,
     evaluate_conditions,
 )
-
-from app.services.category_service import DEFAULT_CATEGORIES_I18N
 
 
 class DuplicateRuleError(Exception):
@@ -1005,11 +1008,8 @@ def _resolve_categories_by_internal_key(
     which language the user's categories were created in.
     """
     key_to_id: dict[str, str] = {}
-    non_name_fields = {"icon", "color", "treat_as_transfer"}
-    for internal_key, data in DEFAULT_CATEGORIES_I18N.items():
-        for field, value in data.items():
-            if field in non_name_fields:
-                continue
+    for internal_key, data in DEFAULT_CATEGORIES.items():
+        for value in data["names"].values():
             cat_id = categories_by_name.get(value)
             if cat_id:
                 key_to_id[internal_key] = cat_id
@@ -1142,16 +1142,6 @@ async def _ensure_categories_for_keys(
     happens to be pt-BR. Returns the count of newly-created categories.
     """
     from app.models.category_group import CategoryGroup
-    from app.services.category_group_service import (
-        CATEGORY_TO_GROUP,
-        DEFAULT_GROUPS_I18N,
-    )
-    from app.services.category_service import DEFAULT_CATEGORIES_I18N
-
-    non_name_fields = {"icon", "color", "treat_as_transfer", "position"}
-
-    def variants(data: dict) -> set[str]:
-        return {v for k, v in data.items() if k not in non_name_fields}
 
     existing_cats = list(
         (
@@ -1171,7 +1161,8 @@ async def _ensure_categories_for_keys(
     missing_keys = [
         key
         for key in internal_keys
-        if (data := DEFAULT_CATEGORIES_I18N.get(key)) and not (variants(data) & existing_cat_names)
+        if (data := DEFAULT_CATEGORIES.get(key))
+        and not (name_variants(data) & existing_cat_names)
     ]
     if not missing_keys:
         return 0
@@ -1193,17 +1184,19 @@ async def _ensure_categories_for_keys(
     needed_group_keys = {gk for gk in (CATEGORY_TO_GROUP.get(k) for k in missing_keys) if gk}
     groups_by_key: dict[str, CategoryGroup] = {}
     for gkey in needed_group_keys:
-        gdata = DEFAULT_GROUPS_I18N.get(gkey)
+        gdata = DEFAULT_GROUPS.get(gkey)
         if not gdata:
             continue
-        match = next((g for g in existing_groups if g.name in variants(gdata)), None)
+        match = next(
+            (g for g in existing_groups if g.name in name_variants(gdata)), None
+        )
         if match:
             groups_by_key[gkey] = match
             continue
         group = CategoryGroup(
             user_id=user_id,
             workspace_id=workspace_id,
-            name=gdata.get(lang, gdata["en"]),
+            name=localized_name(gdata, lang),
             icon=gdata["icon"],
             color=gdata["color"],
             position=gdata["position"],
@@ -1214,12 +1207,12 @@ async def _ensure_categories_for_keys(
     await session.flush()
 
     for key in missing_keys:
-        data = DEFAULT_CATEGORIES_I18N[key]
+        data = DEFAULT_CATEGORIES[key]
         target_group = groups_by_key.get(CATEGORY_TO_GROUP.get(key))
         cat = Category(
             user_id=user_id,
             workspace_id=workspace_id,
-            name=data.get(lang, data["en"]),
+            name=localized_name(data, lang),
             icon=data["icon"],
             color=data["color"],
             is_system=True,
@@ -1796,6 +1789,10 @@ async def preview_rule(
         action if isinstance(action, dict) else action.model_dump() for action in actions or []
     ]
 
+    # The save path skips `set_category` at an unavailable target, so a preview that
+    # did not would promise a move that saving never makes.
+    assignable_categories = await get_assignable_category_ids(session, workspace_id)
+
     matched = 0
     changed = 0
     sample: list[RulePreviewItem] = []
@@ -1824,6 +1821,7 @@ async def preview_rule(
                 and not overwrite_existing_categories,
                 skip_description=_has_manual_description(tx),
                 assignable_asset_currencies=asset_currencies,
+                assignable_category_ids=assignable_categories,
             )
             will_change = _rule_effect_state(draft) != before
             if will_change:

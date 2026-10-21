@@ -64,8 +64,13 @@ def _opening_balance_values(account_type: str, balance: Decimal) -> tuple[Decima
     return amount, "credit" if is_credit else "debit"
 
 
-async def get_accounts(session: AsyncSession, workspace_id: uuid.UUID, include_closed: bool = False) -> list[dict]:
-    today = app_today()
+def _balance_subqueries(today: _Date):
+    """Per-account current and previous balances, as two subqueries.
+
+    Shared by the list and the single-account read so both report the same
+    number for the same account: the detail endpoint used to serialize with no
+    balance at all, which made available_credit fall back to the full limit.
+    """
     # Subquery: compute current_balance per account from transactions in one pass
     # Use amount_primary only when tx currency differs from account currency
     # (converts foreign txs to account's reporting currency)
@@ -121,17 +126,48 @@ async def get_accounts(session: AsyncSession, workspace_id: uuid.UUID, include_c
         .subquery()
     )
 
-    # Build the query
-    query = (
+    # Subquery: charges dated after today (future installments, scheduled
+    # purchases). They are not owed yet, so the balance leaves them out, but a
+    # card's limit is already held for them (issue #1185).
+    future_charges_sq = (
+        select(
+            Transaction.account_id,
+            func.coalesce(func.sum(effective_amount), 0).label("future_charges"),
+        )
+        .join(Account, Transaction.account_id == Account.id)
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .where(
+            Account.type == "credit_card",
+            Transaction.type == "debit",
+            Transaction.date > today,
+            Transaction.is_ignored == False,
+            or_(
+                Transaction.category_id.is_(None),
+                Category.is_ignored == False,
+            ),
+        )
+        .group_by(Transaction.account_id)
+        .subquery()
+    )
+
+    return balance_sq, prev_balance_sq, future_charges_sq
+
+
+def _accounts_with_balances_query(
+    workspace_id: uuid.UUID, balance_sq, prev_balance_sq, future_charges_sq
+):
+    return (
         select(
             Account,
             BankConnection,
             func.coalesce(balance_sq.c.current_balance, 0).label("current_balance"),
             func.coalesce(prev_balance_sq.c.previous_balance, 0).label("previous_balance"),
+            func.coalesce(future_charges_sq.c.future_charges, 0).label("future_charges"),
         )
         .outerjoin(BankConnection)
         .outerjoin(balance_sq, Account.id == balance_sq.c.account_id)
         .outerjoin(prev_balance_sq, Account.id == prev_balance_sq.c.account_id)
+        .outerjoin(future_charges_sq, Account.id == future_charges_sq.c.account_id)
         .where(
             or_(
                 Account.workspace_id == workspace_id,
@@ -139,14 +175,36 @@ async def get_accounts(session: AsyncSession, workspace_id: uuid.UUID, include_c
             )
         )
     )
+
+
+async def get_accounts(session: AsyncSession, workspace_id: uuid.UUID, include_closed: bool = False) -> list[dict]:
+    query = _accounts_with_balances_query(workspace_id, *_balance_subqueries(app_today()))
     if not include_closed:
         query = query.where(Account.is_closed == False)
     query = query.order_by(Account.name)
     result = await session.execute(query)
     return [
-            serialize_account(acc, current_balance, previous_balance, connection)
-            for acc, connection, current_balance, previous_balance in result.all()
+            serialize_account(
+                acc, current_balance, previous_balance, connection, future_charges=future_charges
+            )
+            for acc, connection, current_balance, previous_balance, future_charges in result.all()
         ]
+
+
+async def get_account_with_balances(
+    session: AsyncSession, account_id: uuid.UUID, workspace_id: uuid.UUID
+) -> Optional[dict]:
+    """One account, serialized with the same balances the list reports."""
+    query = _accounts_with_balances_query(
+        workspace_id, *_balance_subqueries(app_today())
+    ).where(Account.id == account_id)
+    row = (await session.execute(query)).first()
+    if row is None:
+        return None
+    acc, connection, current_balance, previous_balance, future_charges = row
+    return serialize_account(
+        acc, current_balance, previous_balance, connection, future_charges=future_charges
+    )
 
 
 def _institution(
@@ -176,6 +234,8 @@ def serialize_account(
     current_balance: Optional[Decimal],
     previous_balance: Optional[Decimal],
     connection: Optional[BankConnection] = None,
+    *,
+    future_charges: Optional[Decimal] = None,
 ) -> dict:
     # Connected credit cards and loans: provider stores positive for debt → negate.
     # Manual accounts: transaction math already gives correct sign.
@@ -221,7 +281,13 @@ def serialize_account(
     }
 
     if acc.type == "credit_card":
-        available = compute_available_credit(acc.credit_limit, Decimal(str(resolved_balance)))
+        # A manual card's limit also covers charges dated after today, such as
+        # the remaining installments of a purchase. A connected card's
+        # provider balance is used as-is.
+        held = Decimal("0") if acc.connection_id else Decimal(str(future_charges or 0))
+        available = compute_available_credit(
+            acc.credit_limit, Decimal(str(resolved_balance)) - held
+        )
         payload["available_credit"] = float(available) if available is not None else None
         cycle = get_cycle_dates(acc.statement_close_day, acc.payment_due_day)
         payload["next_close_date"] = cycle["next_close_date"]
