@@ -62,7 +62,7 @@ class AccountData:
     # duplicate instead of recognising the account it already imported.
     external_id: str
     name: str
-    type: str  # checking, savings, credit_card
+    type: str  # checking, savings, credit_card, loan
     balance: Decimal
     currency: str
     credit_limit: Optional[Decimal] = None
