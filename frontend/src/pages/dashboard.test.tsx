@@ -27,6 +27,20 @@ const api = vi.hoisted(() => ({
 
 vi.mock('@/lib/api', () => api)
 
+vi.mock('@/components/transaction-dialog', () => ({
+  TransactionDialog: ({
+    open,
+    accounts: dialogAccounts,
+  }: {
+    open: boolean
+    accounts: Array<{ id: string; type?: string; secured_asset_id?: string | null }>
+  }) => open ? (
+    <div data-testid="transaction-dialog-accounts">
+      {JSON.stringify(dialogAccounts.map(({ id, type, secured_asset_id }) => ({ id, type, secured_asset_id })))}
+    </div>
+  ) : null,
+}))
+
 vi.mock('@/hooks/use-display-locale', () => ({
   useDisplayLocale: () => 'en-US',
   useDateLocale: () => 'en-US',
@@ -156,6 +170,42 @@ describe('Dashboard net worth breakdown', () => {
     const loanRow = within(tooltip).getByText(t('dashboard.loanBalance')).parentElement!
     expect(loanRow).toHaveTextContent(formatCurrency(-40000, 'USD', 'en-US'))
   })
+})
+
+it('passes secured loan account details to transactions opened from the dashboard', async () => {
+  const loan = account({
+    id: 'mortgage',
+    name: 'Mortgage',
+    type: 'loan',
+    secured_asset_id: 'home',
+  })
+  api.accounts.list.mockResolvedValue([...accounts, loan])
+  api.transactions.list.mockResolvedValue({
+    items: [{
+      id: 'payment-1', user_id: 'user-1', account_id: 'checking', category_id: null,
+      category: null, external_id: null, description: 'Mortgage payment', original_description: null,
+      amount: 250, currency: 'USD', date: '2026-10-05', type: 'debit', source: 'manual',
+      status: 'posted', payee: null, payee_id: null, payee_name: null, notes: null,
+      transfer_pair_id: null, amount_primary: null, fx_rate_used: null, fx_fallback: false,
+      installment_number: null, total_installments: null, installment_total_amount: null,
+      installment_purchase_date: null, installment_series_id: null, bill_id: null,
+      effective_bill_date: null, splits: [], is_ignored: false,
+    }],
+    total: 1,
+    page: 1,
+    limit: 500,
+  })
+  const { user } = renderWithProviders(
+    <TooltipProvider delayDuration={0}>
+      <DashboardPage />
+    </TooltipProvider>,
+  )
+
+  await user.click(await screen.findByText('Mortgage payment'))
+
+  expect(await screen.findByTestId('transaction-dialog-accounts')).toHaveTextContent(
+    '"type":"loan","secured_asset_id":"home"',
+  )
 })
 
 describe('Dashboard available balance without an FX rate', () => {
