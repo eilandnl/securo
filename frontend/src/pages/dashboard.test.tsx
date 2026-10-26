@@ -16,30 +16,20 @@ const api = vi.hoisted(() => ({
   },
   transactions: { list: vi.fn(), calendar: vi.fn() },
   budgets: { comparison: vi.fn() },
-  categories: { list: vi.fn() },
-  categoryGroups: { list: vi.fn() },
+  categories: { list: vi.fn(), listIncludingHidden: vi.fn() },
+  categoryGroups: { list: vi.fn(), listIncludingHidden: vi.fn() },
   accounts: { list: vi.fn() },
+  assets: { list: vi.fn() },
+  currencies: { list: vi.fn() },
+  mortgagePayments: { get: vi.fn() },
   goals: { summary: vi.fn() },
   groups: { list: vi.fn() },
   payees: { list: vi.fn() },
-  rules: { create: vi.fn() },
+  rules: { create: vi.fn(), list: vi.fn() },
+  settings: { attachments: vi.fn() },
 }))
 
 vi.mock('@/lib/api', () => api)
-
-vi.mock('@/components/transaction-dialog', () => ({
-  TransactionDialog: ({
-    open,
-    accounts: dialogAccounts,
-  }: {
-    open: boolean
-    accounts: Array<{ id: string; type?: string; secured_asset_id?: string | null }>
-  }) => open ? (
-    <div data-testid="transaction-dialog-accounts">
-      {JSON.stringify(dialogAccounts.map(({ id, type, secured_asset_id }) => ({ id, type, secured_asset_id })))}
-    </div>
-  ) : null,
-}))
 
 vi.mock('@/hooks/use-display-locale', () => ({
   useDisplayLocale: () => 'en-US',
@@ -127,11 +117,28 @@ beforeEach(() => {
   api.transactions.list.mockResolvedValue({ items: [], total: 0 })
   api.budgets.comparison.mockResolvedValue([])
   api.categories.list.mockResolvedValue([])
+  api.categories.listIncludingHidden.mockResolvedValue([])
   api.categoryGroups.list.mockResolvedValue([])
+  api.categoryGroups.listIncludingHidden.mockResolvedValue([])
   api.accounts.list.mockResolvedValue(accounts)
+  api.assets.list.mockResolvedValue([{ id: 'home', name: 'PR review home' }])
+  api.currencies.list.mockResolvedValue([])
+  api.mortgagePayments.get.mockResolvedValue({
+    payment_transaction_id: 'payment-1',
+    payment_amount: 250,
+    currency: 'USD',
+    payment_account_name: 'Checking',
+    allocations: [],
+    principal_total: 0,
+    interest_total: 0,
+    principal_percentage: 0,
+    interest_percentage: 0,
+  })
   api.goals.summary.mockResolvedValue([])
   api.groups.list.mockResolvedValue([])
   api.payees.list.mockResolvedValue([])
+  api.rules.list.mockResolvedValue([])
+  api.settings.attachments.mockResolvedValue({ enabled: false })
 })
 
 describe('Dashboard net worth breakdown', () => {
@@ -172,7 +179,7 @@ describe('Dashboard net worth breakdown', () => {
   })
 })
 
-it('passes secured loan account details to transactions opened from the dashboard', async () => {
+it('shows the mortgage breakdown editor for a payment opened from the dashboard', async () => {
   const loan = account({
     id: 'mortgage',
     name: 'Mortgage',
@@ -202,10 +209,11 @@ it('passes secured loan account details to transactions opened from the dashboar
   )
 
   await user.click(await screen.findByText('Mortgage payment'))
+  await user.click(await screen.findByRole('button', { name: t('transactions.mortgageAllocation') }))
 
-  expect(await screen.findByTestId('transaction-dialog-accounts')).toHaveTextContent(
-    '"type":"loan","secured_asset_id":"home"',
-  )
+  expect(await screen.findByText(/Enter all parts in USD/)).toBeInTheDocument()
+  expect(screen.getByLabelText(t('transactions.mortgagePrincipal'))).toBeInTheDocument()
+  expect(screen.getByLabelText(t('transactions.mortgageInterest'))).toBeInTheDocument()
 })
 
 describe('Dashboard available balance without an FX rate', () => {
