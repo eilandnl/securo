@@ -1537,6 +1537,53 @@ async def test_update_simplefin_card_to_loan_keeps_balance(
     assert updated.balance == Decimal("500.00")
 
 
+@pytest.mark.asyncio
+async def test_update_simplefin_loan_to_credit_card_keeps_liability_sign(
+    session: AsyncSession, test_user, test_workspace,
+):
+    conn_id = await _make_provider_connection(session, test_user.id, "simplefin")
+    account = await _make_account(
+        session,
+        test_user.id,
+        "SimpleFIN Mortgage",
+        acc_type="loan",
+        balance="250000.00",
+        connection_id=conn_id,
+        external_id="sf-loan-card-1",
+    )
+
+    updated = await update_account(
+        session, account.id, test_workspace.id, AccountUpdate(type="credit_card")
+    )
+
+    assert updated is not None
+    assert updated.balance == Decimal("250000.00")
+    assert serialize_account(updated, None, None)["current_balance"] == pytest.approx(-250000.0)
+
+
+@pytest.mark.asyncio
+async def test_update_simplefin_loan_to_checking_flips_balance_to_asset_sign(
+    session: AsyncSession, test_user, test_workspace,
+):
+    conn_id = await _make_provider_connection(session, test_user.id, "simplefin")
+    account = await _make_account(
+        session,
+        test_user.id,
+        "SimpleFIN Mortgage",
+        acc_type="loan",
+        balance="250000.00",
+        connection_id=conn_id,
+        external_id="sf-loan-checking-1",
+    )
+
+    updated = await update_account(
+        session, account.id, test_workspace.id, AccountUpdate(type="checking")
+    )
+
+    assert updated is not None
+    assert updated.balance == Decimal("-250000.00")
+
+
 # ----- per-account institution resolution (issue #345) ------------------------
 
 

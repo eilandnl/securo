@@ -535,7 +535,7 @@ async def update_account(
         # normalization (_provider_to_internal_balance) here so the correction
         # is immediate, not deferred to the next sync. Load the provider via
         # session.get (identity-map hit, never a lazy-load that throws).
-        if old_type != new_type and "credit_card" in (old_type, new_type):
+        if (old_type in LIABILITY_ACCOUNT_TYPES) != (new_type in LIABILITY_ACCOUNT_TYPES):
             conn = (
                 await session.get(BankConnection, account.connection_id)
                 if account.connection_id is not None

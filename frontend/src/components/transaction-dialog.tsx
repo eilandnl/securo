@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { assets as assetsApi, currencies as currenciesApi, transactions as transactionsApi, settings as settingsApi, payees as payeesApi, rules as rulesApi, categories as categoriesApi, categoryGroups as categoryGroupsApi, mortgagePayments as mortgagePaymentsApi } from '@/lib/api'
 import { localDateString } from '@/lib/date-utils'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
+import { extractApiError } from '@/lib/api-errors'
 import { normalizeRuleMatchValue } from '@/lib/rule-match-utils'
 import { findCategoryReference, getRuleCategoryId } from '@/lib/category-reference-utils'
 import { flattenConditions, hasConditionGroups } from '@/lib/rule-conditions'
@@ -1306,7 +1307,7 @@ function TransactionForm({
         />
       )}
 
-      {!isCreating && transaction?.type === 'debit' && transaction.status === 'posted' && accounts.some(a => a.type === 'loan' && a.secured_asset_id) && (
+      {!isCreating && transaction?.type === 'debit' && transaction.status === 'posted' && !transaction.is_ignored && !transaction.transfer_pair_id && !transaction.category?.is_ignored && Number(transaction.amount) > 0 && accounts.find(a => a.id === transaction.account_id)?.type !== 'loan' && accounts.some(a => a.type === 'loan' && a.secured_asset_id) && (
         <MortgagePaymentEditor transaction={transaction} accounts={accounts} />
       )}
 
@@ -1582,6 +1583,7 @@ function MortgagePaymentEditor({
     queryFn: () => assetsApi.list(),
   })
   const refreshMortgageData = async () => {
+    invalidateFinancialQueries(queryClient)
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['mortgage-payment', transaction.id] }),
       queryClient.invalidateQueries({ queryKey: ['accounts'] }),
@@ -1602,7 +1604,7 @@ function MortgagePaymentEditor({
       await refreshMortgageData()
       toast.success(t('transactions.mortgageSaved'))
     },
-    onError: () => toast.error(t('transactions.mortgageSaveError')),
+    onError: (error) => toast.error(extractApiError(error, t('transactions.mortgageSaveError'))),
   })
   const remove = useMutation({
     mutationFn: () => mortgagePaymentsApi.remove(transaction.id),
@@ -1611,7 +1613,7 @@ function MortgagePaymentEditor({
       await refreshMortgageData()
       toast.success(t('transactions.mortgageRemoved'))
     },
-    onError: () => toast.error(t('transactions.mortgageSaveError')),
+    onError: (error) => toast.error(extractApiError(error, t('transactions.mortgageSaveError'))),
   })
   if (account?.type === 'loan' || loans.length === 0) return null
   // Compare whole cents: the backend requires two decimals and an exact total.
@@ -1640,10 +1642,10 @@ function MortgagePaymentEditor({
             <div className="text-sm font-medium">{loan.display_name || loan.name}{propertyName ? <span className="ml-1 text-xs font-normal text-muted-foreground">· {propertyName}</span> : null}</div>
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs text-muted-foreground">{t('transactions.mortgagePrincipal')}
-              <Input type="number" min="0" step="0.01" value={value.principal} onChange={e => setDraftAmounts(prev => ({ ...(prev ?? amounts), [loan.id]: { ...value, principal: e.target.value } }))} />
+              <Input type="number" min="0" step="0.01" value={value.principal} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} onChange={e => setDraftAmounts(prev => ({ ...(prev ?? amounts), [loan.id]: { ...value, principal: e.target.value } }))} />
               </label>
               <label className="text-xs text-muted-foreground">{t('transactions.mortgageInterest')}
-              <Input type="number" min="0" step="0.01" value={value.interest} onChange={e => setDraftAmounts(prev => ({ ...(prev ?? amounts), [loan.id]: { ...value, interest: e.target.value } }))} />
+              <Input type="number" min="0" step="0.01" value={value.interest} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} onChange={e => setDraftAmounts(prev => ({ ...(prev ?? amounts), [loan.id]: { ...value, interest: e.target.value } }))} />
               </label>
             </div>
             <p className="text-xs text-muted-foreground">{t('transactions.mortgageSplitPercentages', { principal: percentage(value.principal, partTotal), interest: percentage(value.interest, partTotal) })}</p>
