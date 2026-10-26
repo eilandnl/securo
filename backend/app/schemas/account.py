@@ -11,10 +11,8 @@ class AccountBase(BaseModel):
     type: str
     balance: Decimal
     currency: str = "USD"
+    # Loan accounts only: the property or vehicle the loan is secured against.
     secured_asset_id: Optional[uuid.UUID] = None
-    mortgage_type: Optional[Literal["annuity", "linear", "interest_only"]] = None
-    annual_interest_rate: Optional[Decimal] = None
-    maturity_date: Optional[date] = None
 
 
 class AccountCreate(BaseModel):
@@ -24,9 +22,6 @@ class AccountCreate(BaseModel):
     balance_date: Optional[date] = None
     currency: str = "USD"
     secured_asset_id: Optional[uuid.UUID] = None
-    mortgage_type: Optional[Literal["annuity", "linear", "interest_only"]] = None
-    annual_interest_rate: Optional[Decimal] = None
-    maturity_date: Optional[date] = None
     credit_limit: Optional[Decimal] = None
     statement_close_day: Optional[int] = None
     payment_due_day: Optional[int] = None
@@ -40,9 +35,6 @@ class AccountUpdate(BaseModel):
     display_name: Optional[str] = None
     type: Optional[str] = None
     secured_asset_id: Optional[uuid.UUID] = None
-    mortgage_type: Optional[Literal["annuity", "linear", "interest_only"]] = None
-    annual_interest_rate: Optional[Decimal] = None
-    maturity_date: Optional[date] = None
     balance: Optional[Decimal] = None
     balance_date: Optional[date] = None
     credit_limit: Optional[Decimal] = None
@@ -69,6 +61,8 @@ class AccountRead(AccountBase):
     institution_logo_url: Optional[str] = None
     current_balance: float = 0.0
     previous_balance: Optional[float] = None
+    # Date of the opening-balance transaction; null when there is none.
+    balance_date: Optional[date] = None
     balance_primary: Optional[float] = None
     # True when the account is in a foreign currency and no real FX rate is
     # available, so balance_primary is left unset rather than a 1:1 guess.
@@ -83,6 +77,14 @@ class AccountRead(AccountBase):
     card_brand: Optional[str] = None
     card_level: Optional[str] = None
     shared_balance_group: Optional[str] = None
+    # Open bill of a card on a shared credit line (earliest due_date on or
+    # after today), in the account's currency. The sidebar leads with it so
+    # every card stops repeating the contract-wide balance. Null when the
+    # card has no such bill, and for all accounts outside a shared line.
+    open_bill_total: Optional[float] = None
+    # Same bill converted to the user's primary currency. None when the
+    # account is already in it or no real FX rate is available.
+    open_bill_total_primary: Optional[float] = None
     is_closed: bool = False
     closed_at: Optional[datetime] = None
 
@@ -124,3 +126,11 @@ class AccountSummary(BaseModel):
     # True when no real FX rate is available, so the *_primary fields are
     # left unset rather than a 1:1 guess.
     fx_fallback: bool = False
+
+
+class AccountRunningBalancePoint(BaseModel):
+    """End-of-day balance on the account page's walk (#1202)."""
+
+    date: date
+    balance: float
+    balance_primary: Optional[float] = None

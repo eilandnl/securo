@@ -57,8 +57,8 @@ def mask_last4(value: Optional[str]) -> Optional[str]:
 class AccountData:
     # The provider's identifier for this account. It is expected to be stable
     # across re-syncs, and the sync matches an incoming account on it first. A
-    # provider that re-keys it — Enable Banking mints a `uid` scoped to a single
-    # session — must also set `stable_external_id`, or re-syncing inserts a
+    # provider that re-keys it (Enable Banking mints a `uid` scoped to a single
+    # session) must also set `stable_external_id`, or re-syncing inserts a
     # duplicate instead of recognising the account it already imported.
     external_id: str
     name: str
@@ -89,6 +89,14 @@ class AccountData:
     institution_external_id: Optional[str] = None
     institution_name: Optional[str] = None
     institution_logo_url: Optional[str] = None
+    # Part of `balance` that the bank has auto-applied to an investment which
+    # the provider also reports as a holding (Pluggy
+    # `bankData.automaticallyInvestedBalance`, issue #843). Zero when unknown.
+    # The sync subtracts it only when a live holding is counted for this
+    # account (see connection_service._auto_invested_deductions), so the
+    # money is counted once: as the asset when one mirrors it, as cash
+    # otherwise.
+    auto_invested_balance: Decimal = Decimal(0)
 
 
 @dataclass
