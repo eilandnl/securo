@@ -193,7 +193,7 @@ export function AppLayout() {
   const allAccounts = accountsList ?? []
   // When a collection is active, the sidebar list + total reflect only its
   // accounts (issue #105). null = all accounts.
-  const collectionAccounts = activeAccountIds
+  const visibleAccounts = activeAccountIds
     ? allAccounts.filter((a) => activeAccountIds.includes(a.id))
     : allAccounts
   const totalBalance = sumAccountsTotal(visibleAccounts)

@@ -179,6 +179,9 @@ export interface Account {
   institution_logo_url: string | null
   type: string
   secured_asset_id?: string | null
+  mortgage_type?: 'annuity' | 'linear' | 'interest_only' | null
+  annual_interest_rate?: number | null
+  maturity_date?: string | null
   balance: number
   current_balance: number
   previous_balance: number | null

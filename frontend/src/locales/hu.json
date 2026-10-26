@@ -133,7 +133,9 @@
     "aiAgents": "AI-ügynökök",
     "documentation": "Dokumentáció",
     "collapseSidebar": "Oldalsáv összecsukása",
-    "expandSidebar": "Oldalsáv kinyitása"
+    "expandSidebar": "Oldalsáv kinyitása",
+    "budget": "Budget",
+    "budgetSettings": "Budget settings"
   },
   "invoices": {
     "title": "Számlázás",
@@ -1152,7 +1154,21 @@
     "invoiceBadgeTooltip": "Ez a tranzakció egy számlát egyenlít ki. Megnyitás.",
     "suggestionBadge": "Kérdés",
     "suggestionBadgeTooltip": "Lehet, hogy egy befizetés kiegyenlíti ezt. Nyisd meg a sort a válaszhoz.",
-    "clearGroupFilter": "Csoportszűrő törlése"
+    "clearGroupFilter": "Csoportszűrő törlése",
+    "mortgageAllocation": "Mortgage payment breakdown",
+    "mortgagePrincipal": "Principal repayment",
+    "mortgageInterest": "Interest",
+    "mortgageCurrencyHint": "Enter all parts in {{currency}}.",
+    "mortgageSplitPercentages": "Payment split: {{principal}}% principal / {{interest}}% interest",
+    "mortgagePaymentTotal": "Parts total: {{currency}} {{total}}; payment: {{currency}} {{payment}}",
+    "saveMortgageAllocation": "Save mortgage breakdown",
+    "mortgageSaved": "Mortgage breakdown saved",
+    "mortgageRemoved": "Mortgage breakdown removed",
+    "removeMortgageAllocation": "Remove breakdown",
+    "mortgageSaveError": "Could not save mortgage breakdown. Check that the parts add up to the payment.",
+    "mortgageSavedSummary": "Saved totals: {{currency}} {{principal}} principal ({{principalPercentage}}%) and {{currency}} {{interest}} interest ({{interestPercentage}}%)",
+    "mortgageHistoricalNote": "This payment predates the recorded mortgage balance. Its split is saved, but the debt is not reduced again.",
+    "mortgageBankManagedNote": "Your bank reports this loan's balance, so the split is saved without posting the principal again."
   },
   "accounts": {
     "title": "Számlák",
@@ -1313,7 +1329,17 @@
       "active": "Aktív",
       "error": "Hiba",
       "expired": "Lejárt"
-    }
+    },
+    "mortgageType": "Repayment type",
+    "mortgageAnnuity": "Annuity",
+    "mortgageLinear": "Linear",
+    "mortgageInterestOnly": "Interest-only",
+    "annualInterestRate": "Annual interest rate (%)",
+    "maturityDate": "Mortgage end date",
+    "mortgageAnnuityHint": "Gross payment is usually steady: interest falls and principal repayment rises. Initial payments are often lower than linear, but total interest can be higher. Net costs depend on tax treatment.",
+    "mortgageLinearHint": "Principal repayment stays level while interest and total payment fall. Payments start higher than an annuity mortgage, with lower total interest under the same rate and term.",
+    "mortgageInterestOnlyHint": "Monthly payments cover interest only; the principal remains due at the end. Tax treatment depends on the loan and local rules.",
+    "estimatedPayment": "Indicative monthly payment"
   },
   "connections": {
     "settings": "Kapcsolat beállításai",
@@ -1363,7 +1389,20 @@
     "confirmDeleteDescription": "A(z) „{{name}}” költségkerete véglegesen törlődik. A meglévő tranzakciókat ez nem érinti. Ez a művelet nem vonható vissza.",
     "confirmDeleteRecurringDescription": "A(z) „{{name}}” ismétlődő költségkerete véglegesen törlődik. Ez a beállítás a későbbi hónapokra sem vonatkozik majd. A meglévő tranzakciókat ez nem érinti. Ez a művelet nem vonható vissza.",
     "repeatEveryMonth": "Ismétlés minden hónapban",
-    "recurringLabel": "Ismétlődő"
+    "recurringLabel": "Ismétlődő",
+    "settingsTitle": "Budget settings",
+    "monthBudgets": "Budgets for {{month}}",
+    "suggestionsHint": "Suggestions are your typical month: the median of the last 3 months.",
+    "useAllSuggestions": "Use all suggestions",
+    "average": "usually {{amount}}",
+    "useSuggestion": "use",
+    "otherCategories": "Other categories",
+    "noCategories": "No categories yet",
+    "total": "Budget {{amount}}",
+    "typicalSpending": "usually spent {{amount}}",
+    "saved": "Budgets saved",
+    "budgetFor": "Budget for {{category}}",
+    "repeatEveryMonthFor": "Repeat the {{category}} budget every month"
   },
   "goals": {
     "title": "Célok",
@@ -1585,7 +1624,12 @@
       "rules": "Szabályok",
       "queue": "Rád vár",
       "history": "Előzmények"
-    }
+    },
+    "linkInvestmentContribution": "Link investment contribution",
+    "clearInvestmentContribution": "Clear investment link",
+    "clearInvestmentContributionHint": "Remove the linked asset contribution",
+    "selectInvestmentAsset": "Select investment asset...",
+    "investmentContributionHint": "To keep this out of spending totals, add an Investments category action too."
   },
   "categories": {
     "title": "Kategóriák",
@@ -2019,7 +2063,19 @@
     "total": "Összesen",
     "confirmRegenerateTitle": "Újragenerálod az értékeket?",
     "confirmRegenerate": "A növekedési paraméterek megváltoztak. Az összes automatikusan generált érték törlődik és újraszámolódik. A kézi értékek megmaradnak.",
-    "regenerate": "Újragenerálás"
+    "regenerate": "Újragenerálás",
+    "linkedMortgages": "Linked loans / mortgages",
+    "addMortgage": "Add mortgage",
+    "noMortgageLinked": "No mortgage linked to this property yet.",
+    "linkExistingLoan": "Link existing loan",
+    "createLoan": "Create loan",
+    "selectLoan": "Select a loan",
+    "noUnlinkedLoans": "There are no unlinked loan accounts. Create a loan instead.",
+    "unlinkMortgage": "Unlink loan from property",
+    "mortgageSaved": "Mortgage linked to property",
+    "mortgageBalancesUnavailable": "Mortgage balances could not be loaded. Reload the page to try again.",
+    "mortgageDebtEquity": "Debt: {{debt}} · Estimated equity: {{equity}}",
+    "propertyValue": "Property value"
   },
   "reports": {
     "section": "Elemzések",
@@ -3008,5 +3064,44 @@
       "recurring": "Ismétlődési szabályok",
       "recurringHint": "Hogyan döntjük el, hogy egy terhelés az a számla, amelyre már számítottál."
     }
+  },
+  "budgetOverview": {
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "remaining": "Budget left",
+    "overBudget": "Over budget",
+    "spentThisMonth": "Spent this month",
+    "dayOfTotal": "Day {{day}} of {{total}}",
+    "monthClosed": "Month closed",
+    "monthNotStarted": "Not started yet",
+    "usedOfBudget": "{{spent}} of {{budget}}",
+    "spentOutsideBudget": "+ {{amount}} spent outside your budget",
+    "noBudgetForMonth": "No budget set for {{month}}",
+    "setBudgets": "Set budgets",
+    "spent": "Spent",
+    "monthEndEstimate": "Expected at month end",
+    "overBy": "{{amount}} over budget",
+    "totalBudget": "Total budget",
+    "safeDaily": "Free to spend per day",
+    "forDays_one": "{{count}} day left · after fixed costs",
+    "forDays_other": "{{count}} days left · after fixed costs",
+    "categoryBudgets": "Category budgets",
+    "viewTransactionsFor": "View transactions for {{category}}",
+    "ofBudget": "of {{amount}}",
+    "noBudgetSet": "No budget set",
+    "expectedAmount": "Expected {{amount}}",
+    "noData": "No spending this month",
+    "spendingThisMonth": "Spending this month",
+    "forecastHint": "Expected: spent so far plus scheduled transactions",
+    "forecastHistoryHint": "Expected: spent so far, fixed charges still to come and your usual spending for the rest of the month",
+    "actualToDate": "Spent",
+    "forecastLine": "Expected",
+    "dayOfMonth": "Day {{day}}",
+    "history": "History",
+    "monthsUnderBudget": "Within budget in {{count}} of the last {{total}} months",
+    "noHistory": "No budget history yet",
+    "leftAmount": "{{amount}} left",
+    "overAmount": "{{amount}} over",
+    "withoutBudget": "Without a budget"
   }
 }

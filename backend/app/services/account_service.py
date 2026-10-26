@@ -330,6 +330,9 @@ def serialize_account(
         "masked_number": acc.masked_number,
         "type": acc.type,
         "secured_asset_id": acc.secured_asset_id,
+        "mortgage_type": acc.mortgage_type,
+        "annual_interest_rate": acc.annual_interest_rate,
+        "maturity_date": acc.maturity_date,
         "balance": acc.balance,
         "currency": acc.currency,
         "current_balance": resolved_balance,
@@ -432,6 +435,9 @@ async def create_account(
         balance=data.balance,
         currency=data.currency,
         secured_asset_id=data.secured_asset_id,
+        mortgage_type=data.mortgage_type if is_loan else None,
+        annual_interest_rate=data.annual_interest_rate if is_loan else None,
+        maturity_date=data.maturity_date if is_loan else None,
         credit_limit=data.credit_limit if is_cc else None,
         statement_close_day=data.statement_close_day if is_cc else None,
         payment_due_day=data.payment_due_day if is_cc else None,
@@ -473,8 +479,8 @@ async def update_account(
     update_data = data.model_dump(exclude_unset=True)
     balance_date = update_data.pop("balance_date", None)
     new_type = update_data.get("type", account.type)
-    if account.connection_id is not None and new_type == "loan":
-        raise ValueError("Bank-connected accounts cannot be loans yet")
+    if account.type == "loan" and new_type != "loan" and await _has_mortgage_allocations(session, account):
+        raise ValueError("Remove this loan's mortgage payment breakdowns before changing its type")
     # Switching between a loan and any other type flips what the balance means
     # (money held vs. money owed). That is safe for an account that only has
     # its opening balance; with real history it would silently reinterpret it.
@@ -803,6 +809,22 @@ async def sync_opening_balance_for_connected_account(
         apply_effective_date(opening_tx, account)
         session.add(opening_tx)
     await session.flush()
+
+
+async def _has_mortgage_allocations(session: AsyncSession, account: Account) -> bool:
+    linked = await session.scalar(
+        select(MortgagePaymentAllocation.id)
+        .where(MortgagePaymentAllocation.loan_account_id == account.id)
+        .limit(1)
+    )
+    return linked is not None
+
+
+def _clear_loan_fields(account: Account) -> None:
+    account.secured_asset_id = None
+    account.mortgage_type = None
+    account.annual_interest_rate = None
+    account.maturity_date = None
 
 
 async def delete_account(session: AsyncSession, account_id: uuid.UUID, workspace_id: uuid.UUID) -> bool:

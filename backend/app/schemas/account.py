@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -13,6 +13,9 @@ class AccountBase(BaseModel):
     currency: str = "USD"
     # Loan accounts only: the property or vehicle the loan is secured against.
     secured_asset_id: Optional[uuid.UUID] = None
+    mortgage_type: Optional[str] = None
+    annual_interest_rate: Optional[Decimal] = None
+    maturity_date: Optional[date] = None
 
 
 class AccountCreate(BaseModel):
@@ -22,6 +25,9 @@ class AccountCreate(BaseModel):
     balance_date: Optional[date] = None
     currency: str = "USD"
     secured_asset_id: Optional[uuid.UUID] = None
+    mortgage_type: Optional[str] = None
+    annual_interest_rate: Optional[Decimal] = None
+    maturity_date: Optional[date] = None
     credit_limit: Optional[Decimal] = None
     statement_close_day: Optional[int] = None
     payment_due_day: Optional[int] = None
@@ -35,6 +41,9 @@ class AccountUpdate(BaseModel):
     display_name: Optional[str] = None
     type: Optional[str] = None
     secured_asset_id: Optional[uuid.UUID] = None
+    mortgage_type: Optional[str] = None
+    annual_interest_rate: Optional[Decimal] = None
+    maturity_date: Optional[date] = None
     balance: Optional[Decimal] = None
     balance_date: Optional[date] = None
     credit_limit: Optional[Decimal] = None

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { normalizeBudgetComparisonRows, normalizeBudgetForecast, type BudgetForecastData } from '@/lib/budget-overview-utils'
 import type { AxiosResponse } from 'axios'
 import { markDataChanged } from '@/lib/data-changed'
 import type { NumberFormat, DateFormat } from '@/lib/format'
@@ -499,7 +500,6 @@ export const accounts = {
     secured_asset_id?: string | null
     credit_limit?: number | null
     statement_close_day?: number | null
-    secured_asset_id?: string | null
     mortgage_type?: 'annuity' | 'linear' | 'interest_only' | null
     annual_interest_rate?: number | null
     maturity_date?: string | null

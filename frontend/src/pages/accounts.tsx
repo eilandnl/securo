@@ -723,7 +723,6 @@ export function AccountDialog({
     credit_limit?: number | null
     statement_close_day?: number | null
     payment_due_day?: number | null
-    secured_asset_id?: string | null
     mortgage_type?: 'annuity' | 'linear' | 'interest_only' | null
     annual_interest_rate?: number | null
     maturity_date?: string | null
@@ -756,6 +755,9 @@ export function AccountDialog({
   const [statementCloseDay, setStatementCloseDay] = useState(account?.statement_close_day?.toString() ?? '')
   const [paymentDueDay, setPaymentDueDay] = useState(account?.payment_due_day?.toString() ?? '')
   const [securedAssetId, setSecuredAssetId] = useState(account?.secured_asset_id ?? '')
+  const [mortgageType, setMortgageType] = useState<'annuity' | 'linear' | 'interest_only'>(account?.mortgage_type ?? 'annuity')
+  const [annualInterestRate, setAnnualInterestRate] = useState(account?.annual_interest_rate?.toString() ?? '')
+  const [maturityDate, setMaturityDate] = useState(account?.maturity_date ?? '')
 
   const properties = (assetsList ?? []).filter((asset) => LOAN_COLLATERAL_TYPES.includes(asset.type))
   // Send the link the select shows: a saved id that is no longer a listed
@@ -778,6 +780,9 @@ export function AccountDialog({
     setStatementCloseDay(account?.statement_close_day?.toString() ?? '')
     setPaymentDueDay(account?.payment_due_day?.toString() ?? '')
     setSecuredAssetId(account?.secured_asset_id ?? '')
+    setMortgageType(account?.mortgage_type ?? 'annuity')
+    setAnnualInterestRate(account?.annual_interest_rate?.toString() ?? '')
+    setMaturityDate(account?.maturity_date ?? '')
   }
 
   return (
@@ -809,6 +814,9 @@ export function AccountDialog({
               }),
               type,
               ...(type === 'loan' && { secured_asset_id: securedAssetIsListed ? securedAssetId : null }),
+              mortgage_type: type === 'loan' ? mortgageType : null,
+              annual_interest_rate: type === 'loan' && annualInterestRate ? Number(annualInterestRate) : null,
+              maturity_date: type === 'loan' ? maturityDate || null : null,
               display_name: displayName.trim() || null,
               ...(isCC && {
                 credit_limit: creditLimit !== '' ? parseFloat(creditLimit) : null,
@@ -832,7 +840,7 @@ export function AccountDialog({
                 onChange={(e) => setSecuredAssetId(e.target.value)}
               >
                 <option value="">{t('accounts.noSecuredProperty')}</option>
-                {(propertyAssets ?? []).filter((asset) => asset.type === 'real_estate').map((asset) => (
+                {properties.filter((asset) => asset.type === 'real_estate').map((asset) => (
                   <option key={asset.id} value={asset.id}>{asset.name}</option>
                 ))}
               </select>

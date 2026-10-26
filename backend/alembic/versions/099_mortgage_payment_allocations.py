@@ -1,7 +1,7 @@
-"""Ensure mortgage schema exists after resolving the 097 revision collision.
+"""store mortgage metadata and payment breakdowns
 
-Revision ID: 100
-Revises: 099
+Revision ID: 099
+Revises: 098
 """
 
 import sqlalchemy as sa
@@ -9,46 +9,26 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "100"
-down_revision = "099"
+revision = "099"
+down_revision = "098"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    account_columns = {column["name"] for column in inspector.get_columns("accounts")}
-    if "secured_asset_id" not in account_columns:
-        op.add_column(
-            "accounts",
-            sa.Column("secured_asset_id", postgresql.UUID(as_uuid=True), nullable=True),
-        )
-    if "mortgage_type" not in account_columns:
-        op.add_column("accounts", sa.Column("mortgage_type", sa.String(20), nullable=True))
-    if "annual_interest_rate" not in account_columns:
-        op.add_column(
-            "accounts", sa.Column("annual_interest_rate", sa.Numeric(8, 5), nullable=True)
-        )
-    if "maturity_date" not in account_columns:
-        op.add_column("accounts", sa.Column("maturity_date", sa.Date(), nullable=True))
+    columns = {column["name"] for column in sa.inspect(op.get_bind()).get_columns("accounts")}
+    for name, column in (
+        ("mortgage_type", sa.Column("mortgage_type", sa.String(20), nullable=True)),
+        (
+            "annual_interest_rate",
+            sa.Column("annual_interest_rate", sa.Numeric(8, 5), nullable=True),
+        ),
+        ("maturity_date", sa.Column("maturity_date", sa.Date(), nullable=True)),
+    ):
+        if name not in columns:
+            op.add_column("accounts", column)
 
-    inspector = sa.inspect(bind)
-    account_indexes = {index["name"] for index in inspector.get_indexes("accounts")}
-    if "ix_accounts_secured_asset_id" not in account_indexes:
-        op.create_index("ix_accounts_secured_asset_id", "accounts", ["secured_asset_id"])
-    account_fks = {fk["name"] for fk in inspector.get_foreign_keys("accounts")}
-    if "fk_accounts_secured_asset_id_assets" not in account_fks:
-        op.create_foreign_key(
-            "fk_accounts_secured_asset_id_assets",
-            "accounts",
-            "assets",
-            ["secured_asset_id"],
-            ["id"],
-            ondelete="SET NULL",
-        )
-
-    if "mortgage_payment_allocations" not in inspector.get_table_names():
+    if "mortgage_payment_allocations" not in sa.inspect(op.get_bind()).get_table_names():
         op.create_table(
             "mortgage_payment_allocations",
             sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -90,20 +70,25 @@ def upgrade() -> None:
             ),
         )
 
-    inspector = sa.inspect(bind)
-    allocation_indexes = {
-        index["name"] for index in inspector.get_indexes("mortgage_payment_allocations")
+    indexes = {
+        index["name"]
+        for index in sa.inspect(op.get_bind()).get_indexes("mortgage_payment_allocations")
     }
     for index_name, column in (
         ("ix_mortgage_payment_allocations_workspace_id", "workspace_id"),
         ("ix_mortgage_payment_allocations_payment_transaction_id", "payment_transaction_id"),
         ("ix_mortgage_payment_allocations_loan_account_id", "loan_account_id"),
     ):
-        if index_name not in allocation_indexes:
+        if index_name not in indexes:
             op.create_index(index_name, "mortgage_payment_allocations", [column])
 
-    op.execute(
-        """
+    # A bank payment can be deleted from many places (single and bulk delete,
+    # account or user deletion, provider sync). Deleting it cascades to its
+    # breakdown rows, and each of those takes its principal entry with it, or
+    # the loan would stay reduced. AFTER DELETE on the breakdown table, because
+    # a BEFORE trigger on transactions fails when one statement deletes both
+    # the payment and its principal entry.
+    op.execute("""
         CREATE OR REPLACE FUNCTION delete_mortgage_principal_entry() RETURNS trigger
         LANGUAGE plpgsql AS $$
         BEGIN
@@ -113,10 +98,8 @@ def upgrade() -> None:
             RETURN NULL;
         END;
         $$;
-        """
-    )
-    op.execute(
-        """
+    """)
+    op.execute("""
         DO $$
         BEGIN
             IF NOT EXISTS (
@@ -132,11 +115,10 @@ def upgrade() -> None:
             END IF;
         END;
         $$;
-        """
-    )
+    """)
 
 
 def downgrade() -> None:
-    # This is a reconciliation migration. Dropping this schema could destroy
-    # mortgage data created by the earlier 097 migration, so downgrade is safe.
+    # This migration also upgrades databases from the legacy combined revision.
+    # Do not remove mortgage data when rolling back the version marker.
     pass

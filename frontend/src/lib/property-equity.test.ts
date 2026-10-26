@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { getLoanDebtPrimary, getPropertyEquity } from '@/lib/property-equity'
+import {
+  getLoanDebtPrimary,
+  getLoanHistoryDebt,
+  getNetAssetValuePrimary,
+  getPropertyEquity,
+} from '@/lib/property-equity'
 
 describe('property equity', () => {
-  const property = { id: 'home', currency: 'USD', current_value: 593000, current_value_primary: null }
+  const property = { id: 'home', type: 'real_estate', currency: 'USD', current_value: 593000, current_value_primary: null }
   const loans = [
     { type: 'loan', secured_asset_id: 'home', current_balance: -194723.17, balance_primary: null },
     { type: 'loan', secured_asset_id: 'home', current_balance: -23556.84, balance_primary: null },
@@ -36,5 +41,15 @@ describe('property equity', () => {
   it('does not fabricate equity for a foreign property without an FX rate', () => {
     const foreignProperty = { ...property, currency: 'EUR' }
     expect(getPropertyEquity(foreignProperty, loans, 'USD')).toBeNull()
+  })
+
+  it('subtracts linked loan balances from current property value', () => {
+    expect(getNetAssetValuePrimary(property, loans, 'USD')).toBeCloseTo(374719.99, 2)
+  })
+
+  it('uses each loan ledger sign for historical balances', () => {
+    expect(getLoanHistoryDebt(-100, false)).toBe(100)
+    expect(getLoanHistoryDebt(100, true)).toBe(100)
+    expect(getLoanHistoryDebt(100, false)).toBe(0)
   })
 })

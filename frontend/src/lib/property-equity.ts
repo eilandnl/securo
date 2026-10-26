@@ -4,7 +4,7 @@ import { getAssetValuePrimary } from '@/lib/asset-portfolio-share'
 /** Asset types a loan can be secured against (a mortgage, a car financing). */
 export const LOAN_COLLATERAL_TYPES: readonly string[] = ['real_estate', 'vehicle']
 
-type ValuedProperty = Pick<Asset, 'id' | 'currency' | 'current_value' | 'current_value_primary'>
+type ValuedProperty = Pick<Asset, 'id' | 'type' | 'currency' | 'current_value' | 'current_value_primary'>
 type SecuredLoan = Pick<Account, 'type' | 'secured_asset_id' | 'current_balance' | 'balance_primary'>
 
 /** Loan debt in the user's primary currency. An overpaid loan owes nothing. */
@@ -24,4 +24,25 @@ export function getPropertyEquity(
     .filter(account => account.type === 'loan' && account.secured_asset_id === property.id)
     .reduce((total, loan) => total + getLoanDebtPrimary(loan), 0)
   return { value, debt, equity: value - debt }
+}
+
+/** Outstanding debt at one point of a loan's history, using its ledger sign. */
+export function getLoanHistoryDebt(balance: number, connected: boolean): number {
+  return Math.max(0, connected ? balance : -balance)
+}
+
+/** Current asset value after subtracting linked debt, without mixing currencies. */
+export function getNetAssetValuePrimary(
+  asset: ValuedProperty,
+  accounts: SecuredLoan[],
+  displayCurrency: string,
+): number | null {
+  const value = getAssetValuePrimary(asset, displayCurrency)
+  if (value == null) return null
+  if (asset.type !== 'real_estate') return value
+
+  const debt = accounts
+    .filter((account) => account.type === 'loan' && account.secured_asset_id === asset.id)
+    .reduce((total, loan) => total + getLoanDebtPrimary(loan), 0)
+  return value - debt
 }

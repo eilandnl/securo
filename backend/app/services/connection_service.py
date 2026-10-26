@@ -2407,7 +2407,7 @@ async def sync_connection(
                 # label; once the user overrides the type to credit_card the
                 # downstream sites negate it, so store positive-for-debt to keep
                 # them provider-agnostic and avoid double-counting.
-                account.balance = _simplefin_to_internal_balance(
+                account.balance = _provider_to_internal_balance(
                     connection.provider,
                     account.type,
                     _account_balance(acc_data, auto_invested_deducted),

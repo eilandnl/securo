@@ -16,19 +16,26 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "accounts",
-        sa.Column("secured_asset_id", postgresql.UUID(as_uuid=True), nullable=True),
-    )
-    op.create_index("ix_accounts_secured_asset_id", "accounts", ["secured_asset_id"])
-    op.create_foreign_key(
-        "fk_accounts_secured_asset_id_assets",
-        "accounts",
-        "assets",
-        ["secured_asset_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    bind = op.get_bind()
+    columns = {column["name"] for column in sa.inspect(bind).get_columns("accounts")}
+    if "secured_asset_id" not in columns:
+        op.add_column(
+            "accounts",
+            sa.Column("secured_asset_id", postgresql.UUID(as_uuid=True), nullable=True),
+        )
+    indexes = {index["name"] for index in sa.inspect(bind).get_indexes("accounts")}
+    if "ix_accounts_secured_asset_id" not in indexes:
+        op.create_index("ix_accounts_secured_asset_id", "accounts", ["secured_asset_id"])
+    foreign_keys = {fk["name"] for fk in sa.inspect(bind).get_foreign_keys("accounts")}
+    if "fk_accounts_secured_asset_id_assets" not in foreign_keys:
+        op.create_foreign_key(
+            "fk_accounts_secured_asset_id_assets",
+            "accounts",
+            "assets",
+            ["secured_asset_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
 
 def downgrade() -> None:
