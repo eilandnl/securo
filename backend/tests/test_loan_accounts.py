@@ -193,7 +193,7 @@ async def test_retyping_account_to_loan_resigns_opening_balance_without_balance_
 
 
 @pytest.mark.asyncio
-async def test_bank_connected_account_can_become_loan_for_mortgage_tracking(
+async def test_a_bank_connected_account_cannot_become_a_loan(
     client: AsyncClient,
     auth_headers,
     session: AsyncSession,
@@ -237,10 +237,8 @@ async def test_bank_connected_account_can_become_loan_for_mortgage_tracking(
         f"/api/accounts/{account.id}", headers=auth_headers, json={"type": "loan"}
     )
 
-    assert response.status_code == 200, response.text
-    assert response.json()["type"] == "loan"
-    assert response.json()["balance"] == "1000.00"
-    assert response.json()["current_balance"] == -1000
+    assert response.status_code == 400
+    assert "cannot be loans" in response.json()["detail"]
 
 
 @pytest.mark.asyncio

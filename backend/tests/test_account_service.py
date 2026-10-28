@@ -1478,63 +1478,8 @@ def test_provider_to_internal_balance_keeps_checking_raw():
     ) == Decimal("-250000.00")
 
 
-@pytest.mark.asyncio
-async def test_update_enable_banking_account_to_loan_stores_positive_debt(
-    session: AsyncSession, test_user, test_workspace,
-):
-    conn_id = await _make_provider_connection(session, test_user.id, "enable_banking")
-    account = await _make_account(
-        session, test_user.id, "EB Mortgage", acc_type="checking",
-        balance="-250000.00", connection_id=conn_id, external_id="eb-loan-1",
-    )
-
-    updated = await update_account(
-        session, account.id, test_workspace.id, AccountUpdate(type="loan")
-    )
-    assert updated is not None
-    assert updated.balance == Decimal("250000.00")
-    assert serialize_account(updated, None, None)["current_balance"] == pytest.approx(-250000.0)
 
 
-@pytest.mark.asyncio
-async def test_update_simplefin_account_to_loan_flips_balance(
-    session: AsyncSession, test_user, test_workspace,
-):
-    """A SimpleFIN mortgage arrives as negative debt under type="checking".
-    Overriding it to loan must store positive-for-debt, like a card, so the
-    loan still counts as a liability instead of an asset."""
-    conn_id = await _make_provider_connection(session, test_user.id, "simplefin")
-    account = await _make_account(
-        session, test_user.id, "SimpleFIN Mortgage", acc_type="checking",
-        balance="-250000.00", connection_id=conn_id, external_id="sf-loan-1",
-    )
-
-    updated = await update_account(
-        session, account.id, test_workspace.id, AccountUpdate(type="loan")
-    )
-    assert updated is not None
-    assert updated.type == "loan"
-    assert updated.balance == Decimal("250000.00")
-    payload = serialize_account(updated, None, None)
-    assert payload["current_balance"] == pytest.approx(-250000.0)
-
-
-@pytest.mark.asyncio
-async def test_update_simplefin_card_to_loan_keeps_balance(
-    session: AsyncSession, test_user, test_workspace,
-):
-    """Card → loan stays on the liability side, so the sign is already right."""
-    conn_id = await _make_provider_connection(session, test_user.id, "simplefin")
-    account = await _make_account(
-        session, test_user.id, "SimpleFIN Credit Line", acc_type="credit_card",
-        balance="500.00", connection_id=conn_id, external_id="sf-loan-2",
-    )
-
-    updated = await update_account(
-        session, account.id, test_workspace.id, AccountUpdate(type="loan")
-    )
-    assert updated is not None
-    assert updated.balance == Decimal("500.00")
 
 
 @pytest.mark.asyncio

@@ -487,6 +487,8 @@ async def update_account(
     update_data = data.model_dump(exclude_unset=True)
     balance_date = update_data.pop("balance_date", None)
     new_type = update_data.get("type", account.type)
+    if account.connection_id is not None and new_type == "loan":
+        raise ValueError("Bank-connected accounts cannot be loans yet")
     if account.type == "loan" and new_type != "loan" and await _has_mortgage_allocations(session, account):
         raise ValueError("Remove this loan's mortgage payment breakdowns before changing its type")
     # Switching between a loan and any other type flips what the balance means

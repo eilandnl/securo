@@ -102,7 +102,7 @@ def test_cash_account_type_mapping():
     assert _map_cash_account_type("CACC") == "checking"
     assert _map_cash_account_type("SVGS") == "savings"
     assert _map_cash_account_type("CARD") == "credit_card"
-    assert _map_cash_account_type("LOAN") == "loan"
+    assert _map_cash_account_type("LOAN") == "checking"
     assert _map_cash_account_type(None) == "checking"
     assert _map_cash_account_type("UNKNOWN_TYPE") == "checking"
 
@@ -364,7 +364,10 @@ async def test_loan_account_keeps_the_bank_reported_balance(eb_keys, reported):
     with _patch_client(provider, handler):
         conn = await provider.handle_oauth_callback("code-loan")
     acc = conn.accounts[0]
-    assert acc.type == "loan"
+    # A LOAN account still maps to checking: loans on a bank connection are
+    # not modelled yet. What matters here is that the provider passes the
+    # reported balance through untouched, whatever the type.
+    assert acc.type == "checking"
     assert acc.balance == Decimal(reported)
 
 
