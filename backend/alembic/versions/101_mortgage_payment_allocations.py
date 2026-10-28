@@ -1,7 +1,7 @@
 """store recorded mortgage payment breakdowns
 
-Revision ID: 100
-Revises: 099
+Revision ID: 101
+Revises: 100
 """
 
 import sqlalchemy as sa
@@ -9,8 +9,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "100"
-down_revision = "099"
+revision = "101"
+down_revision = "100"
 branch_labels = None
 depends_on = None
 
