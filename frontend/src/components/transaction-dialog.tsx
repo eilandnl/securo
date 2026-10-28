@@ -1624,6 +1624,10 @@ function MortgagePaymentEditor({
   const partsValid = parts.every(cents => cents !== null)
   const totalCents = parts.reduce<number>((sum, cents) => sum + (cents ?? 0), 0)
   const total = totalCents / 100
+  // Share of the payment, not of the parts entered so far: the label says
+  // "payment split", and while the parts are still short of the payment a
+  // denominator of their own sum reads as 100% of a payment half allocated.
+  const paymentAmount = Number(transaction.amount)
   const percentage = (value: string, totalAmount: number) => totalAmount ? (Number(value || 0) / totalAmount * 100).toFixed(1) : '0.0'
   return (
     <section className="rounded-lg border border-border p-3 space-y-3">
@@ -1635,7 +1639,6 @@ function MortgagePaymentEditor({
       <p className="text-xs text-muted-foreground">{t('transactions.mortgageCurrencyHint', { currency: transaction.currency })}</p>
       {loans.map(loan => {
         const value = amounts[loan.id] ?? { principal: '', interest: '' }
-        const partTotal = Number(value.principal || 0) + Number(value.interest || 0)
         const propertyName = propertyAssets?.find(asset => asset.id === loan.secured_asset_id)?.name
         return (
           <div key={loan.id} className="rounded-md bg-muted/40 p-3 space-y-2">
@@ -1648,7 +1651,7 @@ function MortgagePaymentEditor({
               <Input type="number" min="0" step="0.01" value={value.interest} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} onChange={e => setDraftAmounts(prev => ({ ...(prev ?? amounts), [loan.id]: { ...value, interest: e.target.value } }))} />
               </label>
             </div>
-            <p className="text-xs text-muted-foreground">{t('transactions.mortgageSplitPercentages', { principal: percentage(value.principal, partTotal), interest: percentage(value.interest, partTotal) })}</p>
+            <p className="text-xs text-muted-foreground">{t('transactions.mortgageSplitPercentages', { principal: percentage(value.principal, paymentAmount), interest: percentage(value.interest, paymentAmount) })}</p>
           </div>
         )
       })}
