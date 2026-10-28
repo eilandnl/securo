@@ -49,7 +49,7 @@ def principal_entry(
         user_id=user_id,
         workspace_id=loan.workspace_id,
         account_id=loan.id,
-        description=f"Principal repayment — {payment.description}",
+        description=f"Principal repayment: {payment.description}",
         amount=principal,
         currency=loan.currency,
         date=payment.date,
