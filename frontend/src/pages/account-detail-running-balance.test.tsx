@@ -13,6 +13,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 
 import AccountDetailPage from '@/pages/account-detail'
 import { renderWithProviders } from '@/test/utils'
+import { formatCompactCurrency } from '@/lib/format'
 import type { Transaction } from '@/types'
 
 const api = vi.hoisted(() => ({
@@ -177,7 +178,9 @@ describe('a non-credit-card account with more rows than one page', () => {
 
     await renderPage()
 
-    expect(await screen.findByText('R$20,000')).toBeInTheDocument()
+    // Use the same locale-aware compact format as the axis; Intl may render
+    // BRL's compact suffix differently across runtimes.
+    expect(await screen.findByText(formatCompactCurrency(20000, 'BRL', 'en-US'))).toBeInTheDocument()
     expect(api.accounts.runningBalance).toHaveBeenCalledWith('acc-1', '2026-09-01', '2026-09-30')
   })
 })

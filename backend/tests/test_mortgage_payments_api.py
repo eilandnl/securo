@@ -16,7 +16,7 @@ from app.models.mortgage_payment_allocation import (
 )
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.models.workspace import Workspace
+from app.models.workspace import Workspace, WorkspaceMember
 
 
 async def _make_payment_and_loan(
@@ -655,6 +655,55 @@ async def test_bank_connected_loan_keeps_split_without_posting_principal(
 
 
 @pytest.mark.asyncio
+async def test_a_connected_loan_with_breakdowns_cannot_be_retyped(
+    client: AsyncClient,
+    auth_headers,
+    session: AsyncSession,
+    test_user: User,
+    test_workspace: Workspace,
+):
+    """A connected account skips the history check that stops a manual one, so
+    the breakdown guard is the only thing left holding the type in place."""
+    from datetime import datetime, timezone
+
+    payment, loan = await _make_payment_and_loan(
+        session, test_user, test_workspace, snapshot_date=date(2026, 5, 31)
+    )
+    connection = BankConnection(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        provider="enable_banking",
+        external_id=f"ext-{uuid.uuid4().hex[:8]}",
+        institution_name="Lender",
+        credentials={"token": "fake"},
+        status="active",
+        last_sync_at=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc),
+    )
+    session.add(connection)
+    await session.flush()
+    loan.connection_id = connection.id
+    await session.commit()
+
+    await _post_breakdown(client, auth_headers, payment, loan)
+
+    retyped = await client.patch(
+        f"/api/accounts/{loan.id}", headers=auth_headers, json={"type": "checking"}
+    )
+    assert retyped.status_code == 400
+    assert "mortgage payment breakdowns" in retyped.json()["detail"]
+
+    removed = await client.delete(f"/api/mortgage-payments/{payment.id}", headers=auth_headers)
+    assert removed.status_code == 204
+    assert (
+        await client.patch(
+            f"/api/accounts/{loan.id}", headers=auth_headers, json={"type": "checking"}
+        )
+    ).status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_loan_with_breakdowns_cannot_be_deleted_or_retyped(
     client: AsyncClient,
     auth_headers,
@@ -813,6 +862,58 @@ async def test_breakdown_payment_cannot_be_ignored(
 
 
 @pytest.mark.asyncio
+async def test_ignored_payments_cannot_be_allocated_or_uncategorized(
+    client: AsyncClient,
+    auth_headers,
+    session: AsyncSession,
+    test_user: User,
+    test_workspace: Workspace,
+):
+    from app.models.category import Category
+
+    payment, loan = await _make_payment_and_loan(
+        session, test_user, test_workspace, snapshot_date=date(2026, 5, 31)
+    )
+    ignored_category = Category(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        name="Ignored",
+        is_ignored=True,
+    )
+    session.add(ignored_category)
+    payment.category_id = ignored_category.id
+    await session.commit()
+
+    allocation = await client.put(
+        f"/api/mortgage-payments/{payment.id}",
+        headers=auth_headers,
+        json={
+            "allocations": [
+                {
+                    "loan_account_id": str(loan.id),
+                    "principal_amount": 167.76,
+                    "interest_amount": 65.07,
+                }
+            ]
+        },
+    )
+    assert allocation.status_code == 400
+
+    # Simulate an older or externally imported breakdown attached before the
+    # category was marked ignored: moving it out must also preserve the guard.
+    payment.category_id = None
+    await session.commit()
+    await _post_breakdown(client, auth_headers, payment, loan)
+    payment.category_id = ignored_category.id
+    await session.commit()
+    moved = await client.patch(
+        f"/api/transactions/{payment.id}", headers=auth_headers, json={"category_id": None}
+    )
+    assert moved.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_moving_the_opening_balance_reapplies_the_posting_rule(
     client: AsyncClient,
     auth_headers,
@@ -858,3 +959,110 @@ async def test_moving_the_opening_balance_reapplies_the_posting_rule(
     )
     assert earlier.status_code == 200, earlier.text
     assert await principal_rows() == [Decimal("167.76")]
+
+
+async def _other_workspace(session: AsyncSession, user: User) -> Workspace:
+    """A second workspace the same user owns, to probe the workspace boundary."""
+    other = Workspace(
+        id=uuid.uuid4(), name="Other household", kind="personal", created_by_user_id=user.id
+    )
+    session.add(other)
+    await session.flush()
+    session.add(
+        WorkspaceMember(
+            id=uuid.uuid4(), workspace_id=other.id, user_id=user.id, role="owner"
+        )
+    )
+    await session.commit()
+    return other
+
+
+@pytest.mark.asyncio
+async def test_a_breakdown_of_another_workspace_is_not_reachable(
+    client: AsyncClient,
+    auth_headers,
+    session: AsyncSession,
+    test_user: User,
+):
+    """Every route scopes the payment to the active workspace.
+
+    The same user owns both workspaces here, so only the scoping keeps one
+    out of the other; membership alone would let all three routes through.
+    """
+    other = await _other_workspace(session, test_user)
+    payment, loan = await _make_payment_and_loan(
+        session, test_user, other, snapshot_date=date(2026, 9, 29)
+    )
+    body = {
+        "allocations": [
+            {
+                "loan_account_id": str(loan.id),
+                "principal_amount": 167.76,
+                "interest_amount": 65.07,
+            }
+        ]
+    }
+    owner_headers = {**auth_headers, "X-Workspace-Id": str(other.id)}
+
+    read = await client.get(f"/api/mortgage-payments/{payment.id}", headers=auth_headers)
+    write = await client.put(
+        f"/api/mortgage-payments/{payment.id}", headers=auth_headers, json=body
+    )
+    remove = await client.delete(
+        f"/api/mortgage-payments/{payment.id}", headers=auth_headers
+    )
+    from_owner = await client.put(
+        f"/api/mortgage-payments/{payment.id}", headers=owner_headers, json=body
+    )
+
+    assert read.status_code == 404
+    assert write.status_code == 404
+    assert remove.status_code == 404
+    assert from_owner.status_code == 200, from_owner.text
+    assert await session.scalar(
+        select(MortgagePaymentAllocation.workspace_id).where(
+            MortgagePaymentAllocation.payment_transaction_id == payment.id
+        )
+    ) == other.id
+
+
+@pytest.mark.asyncio
+async def test_a_loan_from_another_workspace_cannot_take_a_part(
+    client: AsyncClient,
+    auth_headers,
+    session: AsyncSession,
+    test_user: User,
+    test_workspace: Workspace,
+):
+    """The loan id arrives from the client, so a payment here must not be able
+    to name a loan over there and move its balance."""
+    payment, _ = await _make_payment_and_loan(
+        session, test_user, test_workspace, snapshot_date=date(2026, 9, 29)
+    )
+    other = await _other_workspace(session, test_user)
+    _, other_loan = await _make_payment_and_loan(
+        session, test_user, other, snapshot_date=date(2026, 9, 29)
+    )
+
+    response = await client.put(
+        f"/api/mortgage-payments/{payment.id}",
+        headers=auth_headers,
+        json={
+            "allocations": [
+                {
+                    "loan_account_id": str(other_loan.id),
+                    "principal_amount": 167.76,
+                    "interest_amount": 65.07,
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+    assert "loan in this workspace" in response.json()["detail"]
+    assert await session.scalar(
+        select(Transaction.id).where(
+            Transaction.account_id == other_loan.id,
+            Transaction.source == MORTGAGE_PRINCIPAL_SOURCE,
+        )
+    ) is None

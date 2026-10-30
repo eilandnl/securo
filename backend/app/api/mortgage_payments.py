@@ -13,6 +13,7 @@ from app.core.workspace_context import (
     current_writable_workspace,
 )
 from app.models.account import Account
+from app.models.category import Category
 from app.models.mortgage_payment_allocation import (
     MORTGAGE_PRINCIPAL_SOURCE,
     MortgagePaymentAllocation,
@@ -168,6 +169,12 @@ async def replace_mortgage_payment_allocations(
         raise HTTPException(400, "Mortgage allocations require a debit from a non-loan account")
     if payment.status != "posted":
         raise HTTPException(400, "Mortgage allocations require a posted payment")
+    if payment.is_ignored:
+        raise HTTPException(400, "An ignored payment cannot have a mortgage breakdown")
+    if payment.category_id is not None and await session.scalar(
+        select(Category.is_ignored).where(Category.id == payment.category_id)
+    ):
+        raise HTTPException(400, "A payment in an ignored category cannot have a mortgage breakdown")
     if payment.transfer_pair_id is not None:
         raise HTTPException(400, "A transfer to another account cannot be a mortgage payment")
     total = sum(

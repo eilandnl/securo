@@ -200,6 +200,9 @@ async def test_bank_connected_account_can_become_loan_for_mortgage_tracking(
     test_user: User,
     test_workspace: Workspace,
 ):
+    """The terms come from the agreement, not the provider, so a connected
+    loan can carry them: without them the type override buys a loan account
+    that can never show a schedule."""
     from datetime import datetime, timezone
 
     from app.models.account import Account
@@ -224,7 +227,83 @@ async def test_bank_connected_account_can_become_loan_for_mortgage_tracking(
         user_id=test_user.id,
         workspace_id=test_workspace.id,
         connection_id=connection.id,
-        external_id="acc-1",
+        external_id="acc-terms-1",
+        name="Lender account",
+        type="checking",
+        balance=-60000,
+        currency="EUR",
+    )
+    session.add(account)
+    await session.commit()
+
+    terms = {
+        "loan_kind": "mortgage",
+        "loan_original_amount": 60000,
+        "loan_interest_rate": 0.8,
+        "loan_rate_period": "monthly",
+        "loan_term_months": 120,
+        "loan_first_payment_date": "2026-01-10",
+        "loan_amortization": "price",
+    }
+
+    # They belong to a loan, so they are refused while the account is checking.
+    rejected = await client.patch(
+        f"/api/accounts/{account.id}", headers=auth_headers, json=terms
+    )
+    assert rejected.status_code == 400
+
+    assert (await client.patch(
+        f"/api/accounts/{account.id}", headers=auth_headers, json={"type": "loan"}
+    )).status_code == 200
+    saved = await client.patch(
+        f"/api/accounts/{account.id}", headers=auth_headers, json=terms
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["loan_term_months"] == 120
+
+    schedule = await client.get(f"/api/accounts/{account.id}/loan-schedule", headers=auth_headers)
+    assert schedule.status_code == 200, schedule.text
+    assert schedule.json()["configured"] is True
+    assert len(schedule.json()["installments"]) == 120
+
+
+@pytest.mark.asyncio
+async def test_a_connected_loan_opens_the_period_on_a_signed_balance(
+    client: AsyncClient,
+    auth_headers,
+    session: AsyncSession,
+    test_user: User,
+    test_workspace: Workspace,
+):
+    """The provider snapshot stores a loan's debt positive, but the summary's
+    opening balance seeds the running-balance walk, which is signed. A card
+    returns 0.0 there, so a loan is the first connected liability to reach it:
+    left unsigned, the projected balance read as money held."""
+    from datetime import datetime, timezone
+
+    from app.models.account import Account
+    from app.models.bank_connection import BankConnection
+
+    connection = BankConnection(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        provider="enable_banking",
+        external_id=f"ext-{uuid.uuid4().hex[:8]}",
+        institution_name="Lender",
+        credentials={"token": "fake"},
+        status="active",
+        last_sync_at=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc),
+    )
+    session.add(connection)
+    await session.flush()
+    account = Account(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        connection_id=connection.id,
+        external_id="acc-signed-1",
         name="Lender account",
         type="checking",
         balance=-1000,
@@ -233,14 +312,15 @@ async def test_bank_connected_account_can_become_loan_for_mortgage_tracking(
     session.add(account)
     await session.commit()
 
-    response = await client.patch(
+    retyped = await client.patch(
         f"/api/accounts/{account.id}", headers=auth_headers, json={"type": "loan"}
     )
+    assert retyped.status_code == 200, retyped.text
 
-    assert response.status_code == 200, response.text
-    assert response.json()["type"] == "loan"
-    assert response.json()["balance"] == "1000.00"
-    assert response.json()["current_balance"] == -1000
+    summary = await client.get(f"/api/accounts/{account.id}/summary", headers=auth_headers)
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["current_balance"] == -1000
+    assert summary.json()["opening_balance"] == -1000
 
 
 @pytest.mark.asyncio

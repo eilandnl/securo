@@ -31,7 +31,7 @@ from app.schemas.transaction import (
 from app.schemas.transaction_split import TransactionSplitInput, TransactionSplitsInput
 from app.services import reconciliation_service, split_service
 from app.services.account_service import get_account, get_running_balances
-from app.services.credit_card_service import apply_effective_date
+from app.services.credit_card_service import apply_effective_date, cc_cycle_bill_due_dates
 from app.services.rule_service import apply_rules_to_transaction
 from app.services.fx_rate_service import stamp_primary_amount, convert as fx_convert
 from app.services._query_filters import (
@@ -405,10 +405,64 @@ async def get_transactions(
                 )
             )
         else:
-            if from_date:
-                base_query = base_query.where(filter_date_col >= from_date)
-            if to_date:
-                base_query = base_query.where(filter_date_col <= to_date)
+            # Single-account date window: if it is exactly one bill cycle of
+            # a credit card account, membership is bill-based, not
+            # window-based. A manual effective_bill_date names a bill by its
+            # DUE date, and a due date can sit inside the NEXT cycle's
+            # purchase window (close 24 / due 18: the Aug bill is due 08-18,
+            # inside the Sep window 07-24 to 08-23), so window bucketing
+            # put overridden txs on the wrong bill and emptied their own
+            # bill (issue #563). The rule: no override stays in the window
+            # exactly as before; an override belongs to this bill when it
+            # falls after the previous bill's due date and on or before
+            # this bill's due date, so every override date maps to exactly
+            # one bill. Any other window shape, or an account whose
+            # close/due days make two bills share a due date (degenerate),
+            # keeps the historical behavior untouched.
+            cycle = None
+            if from_date is not None and to_date is not None:
+                # The list endpoint funnels the single account_id param into
+                # account_ids, so accept either shape when exactly one
+                # account is in scope.
+                single_account = account_id
+                if single_account is None and account_ids is not None and len(account_ids) == 1:
+                    single_account = account_ids[0]
+                if single_account is not None:
+                    acct_row = (
+                        await session.execute(
+                            select(
+                                Account.type,
+                                Account.statement_close_day,
+                                Account.payment_due_day,
+                            ).where(Account.id == single_account)
+                        )
+                    ).first()
+                    if acct_row is not None and acct_row[0] == "credit_card":
+                        cycle = cc_cycle_bill_due_dates(
+                            from_date, to_date, acct_row[1], acct_row[2]
+                        )
+            if cycle is None or cycle["degenerate"]:
+                if from_date:
+                    base_query = base_query.where(filter_date_col >= from_date)
+                if to_date:
+                    base_query = base_query.where(filter_date_col <= to_date)
+            else:
+                from sqlalchemy import and_ as _and
+
+                override = Transaction.effective_bill_date
+                base_query = base_query.where(
+                    or_(
+                        _and(
+                            override.is_(None),
+                            filter_date_col >= from_date,
+                            filter_date_col <= to_date,
+                        ),
+                        _and(
+                            override > cycle["prev"],
+                            override <= cycle["this"],
+                        ),
+                    )
+                )
     if search:
         term = f"%{search}%"
         base_query = base_query.where(
@@ -1794,9 +1848,14 @@ async def update_transaction(
         if row.source == MORTGAGE_PRINCIPAL_SOURCE and changed:
             raise ValueError("Edit the mortgage breakdown on its bank payment instead")
         # Balances skip rows in an ignored category, just like ignored rows.
+        # Moving either into or out of an ignored category changes the bank
+        # side of a mortgage allocation and would desync its loan principal.
         moves_balance = bool(changed & set(_LEDGER_FIELDS)) or (
             "category_id" in changed
-            and await _category_is_ignored(session, row_update["category_id"])
+            and (
+                await _category_is_ignored(session, row.category_id)
+                or await _category_is_ignored(session, row_update["category_id"])
+            )
         )
         if moves_balance and await _has_mortgage_breakdown(session, workspace_id, row.id):
             raise ValueError("Remove the mortgage breakdown before changing this payment")
@@ -1875,20 +1934,28 @@ async def bulk_update_category(
         Transaction.workspace_id == workspace_id,
         Transaction.source != MORTGAGE_PRINCIPAL_SOURCE,
     ]
+    # A category change can alter whether an allocated bank payment contributes
+    # to balances, either by entering or leaving an ignored category.
+    await session.execute(
+        select(Transaction.id).where(*target).order_by(Transaction.id).with_for_update()
+    )
+    linked_query = (
+        select(MortgagePaymentAllocation.id)
+        .join(Transaction, Transaction.id == MortgagePaymentAllocation.payment_transaction_id)
+        .where(*target)
+    )
     if await _category_is_ignored(session, category_id):
-        # Take the row locks a breakdown save takes, in a fixed order, so a save
-        # that commits between the check and the update cannot be missed.
-        await session.execute(
-            select(Transaction.id).where(*target).order_by(Transaction.id).with_for_update()
-        )
+        linked = await session.scalar(linked_query.limit(1))
+    else:
         linked = await session.scalar(
-            select(MortgagePaymentAllocation.id)
-            .join(Transaction, Transaction.id == MortgagePaymentAllocation.payment_transaction_id)
-            .where(*target)
-            .limit(1)
+            linked_query.where(
+                Transaction.category_id.in_(
+                    select(Category.id).where(Category.is_ignored.is_(True))
+                )
+            ).limit(1)
         )
-        if linked is not None:
-            raise ValueError("Remove the mortgage breakdown before changing this payment")
+    if linked is not None:
+        raise ValueError("Remove the mortgage breakdown before changing this payment")
     result = await session.execute(
         update(Transaction).where(*target).values(category_id=category_id)
     )
@@ -1908,6 +1975,65 @@ def _parse_hashtags(notes: Optional[str]) -> list[str]:
     if not notes:
         return []
     return re.findall(rf"#{_TAG_CHAR_CLASS}+", notes)
+
+
+def notes_with_tags_added(notes: Optional[str], tags: list[str]) -> Optional[str]:
+    """Return `notes` with each tag appended, skipping tags already present."""
+    existing = set(_parse_hashtags(notes))
+    normalized_tags = [_normalize_tag(t.strip()) for t in tags if t and t.strip()]
+    to_add = [t for t in dict.fromkeys(normalized_tags) if t not in existing]
+    if not to_add:
+        return notes
+    new_notes = (notes.rstrip() + " " if notes else "") + " ".join(to_add)
+    return new_notes.strip()
+
+
+def _without_tag(notes: str, tag: str) -> str:
+    """Return `notes` without each occurrence of `tag`, in one linear pass.
+
+    The regex matches the tag alone, which opens with a literal `#`, and the
+    spaces around it are read off the string, so a long run of spaces is
+    scanned once rather than retried at every position. A tag goes with the
+    spaces before it, or, opening a line, with the spaces after it, so line
+    breaks and other text keep their shape. A tag glued to the text around
+    it leaves the spaces on its other side, so `Lunch #work#trip today`
+    becomes `Lunch #trip today` without `#work` and `Lunch #work today`
+    without `#trip`.
+    """
+    kept: list[str] = []
+    pos = 0
+    for match in re.finditer(re.escape(tag) + rf"(?!{_TAG_CHAR_CLASS})", notes):
+        start, end = match.span()
+        before = start
+        while before > pos and notes[before - 1] in " \t":
+            before -= 1
+        after = end
+        while after < len(notes) and notes[after] in " \t":
+            after += 1
+        opens_line = start == 0 or notes[start - 1] == "\n"
+        if before < start and not notes.startswith("#", end):
+            kept.append(notes[pos:before])
+            pos = end
+        elif before < start or not opens_line:
+            kept.append(notes[pos:start])
+            pos = end
+        else:
+            kept.append(notes[pos:start])
+            pos = after
+    kept.append(notes[pos:])
+    return "".join(kept)
+
+
+def notes_with_tags_removed(notes: Optional[str], tags: list[str]) -> Optional[str]:
+    """Return `notes` without the given tags, or None when nothing is left."""
+    if not notes:
+        return notes
+    updated = notes
+    for tag in [_normalize_tag(t.strip()) for t in tags if t and t.strip()]:
+        updated = _without_tag(updated, tag)
+    if updated == notes:
+        return notes
+    return updated.strip() or None
 
 
 async def bulk_add_tags(
@@ -1933,12 +2059,10 @@ async def bulk_add_tags(
     )
     touched = 0
     for tx in result.scalars().all():
-        existing = set(_parse_hashtags(tx.notes))
-        to_add = [t for t in normalized_tags if t not in existing]
-        if not to_add:
+        new_notes = notes_with_tags_added(tx.notes, normalized_tags)
+        if new_notes == tx.notes:
             continue
-        new_notes = (tx.notes.rstrip() + " " if tx.notes else "") + " ".join(to_add)
-        tx.notes = new_notes.strip()
+        tx.notes = new_notes
         touched += 1
 
     await session.commit()
@@ -1966,17 +2090,9 @@ async def bulk_remove_tags(
     )
     touched = 0
     for tx in result.scalars().all():
-        if not tx.notes:
-            continue
-        original = tx.notes
-        updated = original
-        for tag in normalized_tags:
-            pattern = r"(?:(?<=^)|(?<=[^\wÀ-ž-]))" + re.escape(tag) + r"(?=$|[^\wÀ-ž-])"
-            updated = re.sub(pattern, "", updated)
-        # Collapse consecutive whitespace left behind by removed tags.
-        updated = re.sub(r"\s{2,}", " ", updated).strip()
-        if updated != original:
-            tx.notes = updated or None
+        new_notes = notes_with_tags_removed(tx.notes, normalized_tags)
+        if new_notes != tx.notes:
+            tx.notes = new_notes
             touched += 1
 
     await session.commit()

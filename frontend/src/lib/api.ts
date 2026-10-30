@@ -22,6 +22,9 @@ import type {
   AccountRunningBalancePoint,
   Collection,
   CreditCardBill,
+  LoanBalanceAdjustment,
+  LoanBalanceUpdate,
+  LoanSchedule,
   DescriptionSuggestion,
   Transaction,
   Payee,
@@ -54,6 +57,7 @@ import type {
   TransactionCalendarResponse,
   Budget,
   BudgetVsActual,
+  BudgetSuggestionResponse,
   Rule,
   RuleAction,
   RuleConditionNode,
@@ -92,6 +96,7 @@ import type {
   GroupMember,
   GroupSettlement,
   GroupBalances,
+  GroupSummary,
   TransactionSplitsInput,
   TransactionEditPayload,
   InstallmentSeriesInput,
@@ -527,6 +532,14 @@ export const accounts = {
     const { data } = await api.get(`/accounts/${id}/running-balance`, { params: { from, to } })
     return data
   },
+  loanSchedule: async (id: string): Promise<LoanSchedule> => {
+    const { data } = await api.get(`/accounts/${id}/loan-schedule`)
+    return data
+  },
+  adjustLoanBalance: async (id: string, body: LoanBalanceUpdate): Promise<LoanBalanceAdjustment> => {
+    const { data } = await api.post(`/accounts/${id}/loan-balance`, body)
+    return data
+  },
   bills: async (id: string, limit = 24): Promise<CreditCardBill[]> => {
     const { data } = await api.get(`/accounts/${id}/bills`, { params: { limit } })
     return data
@@ -568,11 +581,14 @@ export const mortgagePayments = {
     const { data } = await api.get(`/mortgage-payments/${paymentId}`)
     return data
   },
-  replace: async (paymentId: string, allocations: {
-    loan_account_id: string
-    principal_amount: number
-    interest_amount: number
-  }[]) => {
+  replace: async (
+    paymentId: string,
+    allocations: {
+      loan_account_id: string
+      principal_amount: number
+      interest_amount: number
+    }[],
+  ) => {
     const { data } = await api.put(`/mortgage-payments/${paymentId}`, { allocations })
     return data
   },
@@ -1073,6 +1089,10 @@ export const groups = {
     const { data } = await api.get(`/groups/${groupId}/balances`)
     return data
   },
+  summary: async (groupId: string): Promise<GroupSummary> => {
+    const { data } = await api.get(`/groups/${groupId}/summary`)
+    return data
+  },
   transactions: async (groupId: string, limit = 20): Promise<Transaction[]> => {
     const { data } = await api.get(`/groups/${groupId}/transactions`, {
       params: { limit },
@@ -1334,8 +1354,20 @@ export const budgets = {
     return normalizeBudgetComparisonRows(data)
   },
   forecast: async (month?: string): Promise<BudgetForecastData> => {
-    const { data } = await api.get('/budgets/forecast', { params: { month } })
+    const { data } = await api.get('/budgets/forecast/monthly', { params: { month } })
     return normalizeBudgetForecast(data)
+  },
+  suggestions: async (month: string, months: number): Promise<BudgetSuggestionResponse> => {
+    const { data } = await api.get('/budgets/suggestions', { params: { month, months } })
+    return data
+  },
+  createBatch: async (payload: {
+    month: string
+    is_recurring: boolean
+    items: { category_id: string; amount: number }[]
+  }): Promise<Budget[]> => {
+    const { data } = await api.post('/budgets/batch', payload)
+    return data
   },
 }
 
@@ -1401,9 +1433,28 @@ export const dashboard = {
     const { data } = await api.get('/dashboard/projected-transactions', { params })
     return data
   },
-  balanceHistory: async (month?: string, accountIds?: string[]): Promise<BalanceHistory> => {
+  balanceHistory: async (
+    month?: string,
+    accountIds?: string[],
+    comparisonMonths?: string[],
+  ): Promise<BalanceHistory> => {
     const extra = acctIdsParam(accountIds)
-    const { data } = await api.get('/dashboard/balance-history', { params: { month, ...(extra.params ?? {}) }, ...(extra.paramsSerializer ? { paramsSerializer: extra.paramsSerializer } : {}) })
+    const { data } = await api.get('/dashboard/balance-history', {
+      params: {
+        month,
+        ...(extra.params ?? {}),
+        ...(comparisonMonths?.length ? { comparison_months: comparisonMonths } : {}),
+      },
+      paramsSerializer: { indexes: null },
+    })
+    return data
+  },
+  balanceHistoryMonths: async (accountIds?: string[]): Promise<string[]> => {
+    const extra = acctIdsParam(accountIds)
+    const { data } = await api.get('/dashboard/balance-history/months', {
+      params: extra.params,
+      ...(extra.paramsSerializer ? { paramsSerializer: extra.paramsSerializer } : {}),
+    })
     return data
   },
 }
