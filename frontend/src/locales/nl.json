@@ -1459,7 +1459,7 @@
     "confirmDeleteRecurringDescription": "Het terugkerende budget voor \"{{name}}\" wordt permanent verwijderd. Deze definitie geldt niet meer voor latere maanden. Bestaande transacties worden niet beïnvloed. Deze actie kan niet ongedaan worden gemaakt.",
     "settingsTitle": "Budget instellen",
     "monthBudgets": "Budgetten {{month}}",
-    "suggestionsHint": "Suggesties zijn je gebruikelijke maand: de mediaan van de afgelopen 3 maanden.",
+    "suggestionsHint": "Vul een bedrag in bij een bestaande categorie en sla op; maak het veld leeg en sla op om het budget te verwijderen. Suggesties gebruiken de mediaan van de afgelopen 3 maanden.",
     "useAllSuggestions": "Alle suggesties gebruiken",
     "average": "meestal {{amount}}",
     "useSuggestion": "gebruiken",

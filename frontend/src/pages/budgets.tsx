@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CalendarIcon, PiggyBank, Repeat, Sparkles } from 'lucide-react'
+import { CalendarIcon, Repeat, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 import { useDisplayLocale } from '@/hooks/use-display-locale'
 import { monthLabel, shiftMonth } from '@/lib/month-utils'
@@ -79,7 +79,7 @@ export default function BudgetsPage() {
   const { collapsed: sidebarCollapsed } = useSidebarState()
   const timeZone = useEffectiveTimezone()
   const today = todayInTimezone(timeZone)
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const requestedMonth = searchParams.get('month')
   const validRequestedMonth = requestedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth)
     ? requestedMonth
@@ -94,6 +94,12 @@ export default function BudgetsPage() {
   const dateFnsLocale = resolveDateFnsLocale(uiLocale)
   const monthParam = `${selectedMonth}-01`
   const monthTitle = monthLabel(selectedMonth, uiLocale).replace(/^\p{L}/u, (letter) => letter.toLocaleUpperCase(uiLocale))
+  const selectMonth = (nextMonth: string) => {
+    setMonthOverride(nextMonth)
+    const next = new URLSearchParams(searchParams)
+    next.set('month', nextMonth)
+    setSearchParams(next)
+  }
   // Drafts are per month: switching month starts from what is saved there.
   type DraftState = { month: string; drafts: Record<string, string>; recurring: Record<string, boolean> }
   const emptyDrafts = (): DraftState => ({ month: selectedMonth, drafts: {}, recurring: {} })
@@ -202,7 +208,7 @@ export default function BudgetsPage() {
         title={t('budgets.settingsTitle')}
         action={
           <div className="flex flex-wrap items-center gap-1">
-            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.previousMonth')} onClick={() => setMonthOverride((value) => shiftMonth(value ?? selectedMonth, -1))}>‹</button>
+            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.previousMonth')} onClick={() => selectMonth(shiftMonth(selectedMonth, -1))}>‹</button>
             <Popover open={monthCalOpen} onOpenChange={setMonthCalOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -219,16 +225,13 @@ export default function BudgetsPage() {
                   selectedMonth={new Date(`${selectedMonth}-01T00:00:00`)}
                   onMonthSelect={(date) => {
                     if (!date) return
-                    setMonthOverride(format(date, 'yyyy-MM'))
+                    selectMonth(format(date, 'yyyy-MM'))
                     setMonthCalOpen(false)
                   }}
                 />
               </PopoverContent>
             </Popover>
-            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.nextMonth')} onClick={() => setMonthOverride((value) => shiftMonth(value ?? selectedMonth, 1))}>›</button>
-            <Button asChild variant="outline" size="sm" className="ml-2 gap-1.5">
-              <Link to={`/budget?month=${selectedMonth}`}><PiggyBank size={14} />{t('nav.budget')}</Link>
-            </Button>
+            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.nextMonth')} onClick={() => selectMonth(shiftMonth(selectedMonth, 1))}>›</button>
           </div>
         }
       />

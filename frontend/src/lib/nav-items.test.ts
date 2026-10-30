@@ -40,31 +40,17 @@ describe('nav catalog', () => {
 
   it('has a link for every module in the catalog', () => {
     const covered = navItems.filter((i) => i.type === 'link').map((i) => i.module)
-    expect([...new Set(covered)].sort()).toEqual([...MODULE_IDS].sort())
+    expect([...covered].sort()).toEqual([...MODULE_IDS].sort())
   })
 
-  it('allows overview and settings links for the budgets module only', () => {
+  it('gives every link a distinct module', () => {
     const covered = navItems.filter((i) => i.type === 'link').map((i) => i.module)
-    const repeated = covered.filter((module, index) => covered.indexOf(module) !== index)
-    expect(repeated).toEqual(['budgets'])
-  })
-})
-
-describe('isNavItemActive', () => {
-  it('does not activate similarly prefixed destinations together', () => {
-    expect(isNavItemActive('/budgets', '/budget')).toBe(false)
-    expect(isNavItemActive('/budget', '/budgets')).toBe(false)
-    expect(isNavItemActive('/budget', '/budget')).toBe(true)
-  })
-
-  it('keeps nested destinations active and treats home as exact', () => {
-    expect(isNavItemActive('/transactions/abc', '/transactions')).toBe(true)
-    expect(isNavItemActive('/budget', '/')).toBe(false)
+    expect(new Set(covered).size).toBe(covered.length)
   })
 })
 
 describe('visibleNavItems', () => {
-  it('renders both budget destinations in a personal workspace', () => {
+  it('renders a personal workspace exactly as before modules existed', () => {
     const personal = visibleNavItems(navItems, (id) => PERSONAL_MODULES.includes(id))
     expect(linkKeys(personal)).toEqual([
       'transactions',
@@ -72,8 +58,7 @@ describe('visibleNavItems', () => {
       'import',
       'reports',
       'assets',
-      'budget',
-      'budgetSettings',
+      'budgets',
       'goals',
       'recurring',
       'categories',
@@ -125,5 +110,18 @@ describe('visibleNavItems', () => {
     ]
     const result = visibleNavItems(items, allExcept('assets'))
     expect(result.map((i) => (i.type === 'separator' ? i.labelKey : i.key))).toEqual(['one'])
+  })
+})
+
+describe('isNavItemActive', () => {
+  it('does not activate similarly prefixed destinations together', () => {
+    expect(isNavItemActive('/budgets', '/budget')).toBe(false)
+    expect(isNavItemActive('/budget', '/budgets')).toBe(false)
+    expect(isNavItemActive('/budget', '/budget')).toBe(true)
+  })
+
+  it('keeps nested destinations active and treats home as exact', () => {
+    expect(isNavItemActive('/transactions/abc', '/transactions')).toBe(true)
+    expect(isNavItemActive('/budget', '/')).toBe(false)
   })
 })

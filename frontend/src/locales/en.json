@@ -1457,7 +1457,7 @@
     "recurringLabel": "Recurring",
     "settingsTitle": "Budget settings",
     "monthBudgets": "Budgets for {{month}}",
-    "suggestionsHint": "Suggestions are your typical month: the median of the last 3 months.",
+    "suggestionsHint": "Enter an amount for an existing category and save; clear it and save to remove its budget. Suggestions use the median of the last 3 months.",
     "useAllSuggestions": "Use all suggestions",
     "average": "usually {{amount}}",
     "useSuggestion": "use",

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, CalendarIcon, Settings2 } from 'lucide-react'
+import { AlertCircle, CalendarIcon } from 'lucide-react'
 import {
   Area,
   ComposedChart,
@@ -111,7 +111,7 @@ export default function BudgetOverviewPage() {
   const today = todayInTimezone(timeZone)
   const todayDate = useMemo(() => new Date(`${today}T12:00:00`), [today])
   const currentMonth = today.slice(0, 7)
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const requestedMonth = searchParams.get('month')
   const validRequestedMonth = requestedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth)
     ? requestedMonth
@@ -121,6 +121,12 @@ export default function BudgetOverviewPage() {
   const month = monthOverride ?? currentMonth
   const [monthPickerOpen, setMonthPickerOpen] = useState(false)
   const monthParam = `${month}-01`
+  const selectMonth = (nextMonth: string) => {
+    setMonthOverride(nextMonth)
+    const next = new URLSearchParams(searchParams)
+    next.set('month', nextMonth)
+    setSearchParams(next)
+  }
   const dateFnsLocale = resolveDateFnsLocale(language)
   const capitalize = (value: string) => value.replace(/^\p{L}/u, (letter) => letter.toLocaleUpperCase(language))
   const monthTitle = capitalize(monthLabel(month, language))
@@ -203,7 +209,7 @@ export default function BudgetOverviewPage() {
         title={t('nav.budget')}
         action={(
           <div className="flex flex-wrap items-center gap-1">
-            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.previousMonth')} onClick={() => setMonthOverride((value) => shiftMonth(value ?? month, -1))}>‹</button>
+            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.previousMonth')} onClick={() => selectMonth(shiftMonth(month, -1))}>‹</button>
             <Popover open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -220,16 +226,13 @@ export default function BudgetOverviewPage() {
                   selectedMonth={new Date(`${month}-01T00:00:00`)}
                   onMonthSelect={(date) => {
                     if (!date) return
-                    setMonthOverride(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
+                    selectMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
                     setMonthPickerOpen(false)
                   }}
                 />
               </PopoverContent>
             </Popover>
-            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.nextMonth')} onClick={() => setMonthOverride((value) => shiftMonth(value ?? month, 1))}>›</button>
-            <Button asChild variant="outline" size="sm" className="ml-2 gap-1.5">
-              <Link to={`/budgets?month=${month}`}><Settings2 size={14} />{t('nav.budgetSettings')}</Link>
-            </Button>
+            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.nextMonth')} onClick={() => selectMonth(shiftMonth(month, 1))}>›</button>
           </div>
         )}
       />
@@ -273,7 +276,7 @@ export default function BudgetOverviewPage() {
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2">
                   <p className="text-xs text-muted-foreground">{t('budgetOverview.noBudgetForMonth', { month: monthTitle })}</p>
                   <Button asChild variant="outline" size="sm" className="h-7 text-xs">
-                    <Link to={`/budgets?month=${month}`}>{t('budgetOverview.setBudgets')}</Link>
+                    <Link to={`/budgets?view=settings&month=${month}`}>{t('budgetOverview.setBudgets')}</Link>
                   </Button>
                 </div>
               )}
@@ -379,7 +382,7 @@ export default function BudgetOverviewPage() {
             {budgetedRows.length === 0 && unbudgetedRows.length === 0 ? (
               <div className="py-10 text-center">
                 <p className="text-muted-foreground text-sm">{t('budgetOverview.noData')}</p>
-                <Button asChild variant="outline" size="sm" className="mt-4"><Link to={`/budgets?month=${month}`}>{t('budgetOverview.setBudgets')}</Link></Button>
+                <Button asChild variant="outline" size="sm" className="mt-4"><Link to={`/budgets?view=settings&month=${month}`}>{t('budgetOverview.setBudgets')}</Link></Button>
               </div>
             ) : (
               <div className="divide-y divide-border">
@@ -462,7 +465,7 @@ export default function BudgetOverviewPage() {
                   <button
                     key={item.month}
                     type="button"
-                    onClick={() => setMonthOverride(item.month)}
+                    onClick={() => selectMonth(item.month)}
                     className="w-full flex items-center gap-4 px-4 sm:px-5 py-3 text-left hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
                   >
                     <span className="w-28 shrink-0 text-sm font-medium text-foreground">{capitalize(monthLabel(item.month, language))}</span>
