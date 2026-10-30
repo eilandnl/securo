@@ -1484,6 +1484,7 @@
     "typicalSpending": "зазвичай витрачається {{amount}}",
     "saved": "Бюджети збережено",
     "budgetFor": "Бюджет для {{category}}",
+    "invalidAmount": "Введіть коректну суму від нуля.",
     "repeatEveryMonthFor": "Повторювати бюджет «{{category}}» щомісяця",
     "suggest": "Запропонувати з історії",
     "suggestTitle": "Запропонувати бюджети",

@@ -1468,6 +1468,7 @@
     "typicalSpending": "meist ausgegeben {{amount}}",
     "saved": "Budgets gespeichert",
     "budgetFor": "Budget für {{category}}",
+    "invalidAmount": "Gib einen gültigen Betrag von null oder mehr ein.",
     "repeatEveryMonthFor": "Budget für {{category}} jeden Monat wiederholen",
     "suggest": "Aus Verlauf vorschlagen",
     "suggestTitle": "Budgets vorschlagen",

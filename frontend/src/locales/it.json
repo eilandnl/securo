@@ -1471,6 +1471,7 @@
     "typicalSpending": "spesa abituale {{amount}}",
     "saved": "Budget salvati",
     "budgetFor": "Budget per {{category}}",
+    "invalidAmount": "Inserisci un importo valido pari o superiore a zero.",
     "repeatEveryMonthFor": "Ripeti il budget di {{category}} ogni mese",
     "suggest": "Suggerisci dalla cronologia",
     "suggestTitle": "Suggerisci budget",

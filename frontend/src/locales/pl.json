@@ -1520,6 +1520,7 @@
     "typicalSpending": "zwykle wydane {{amount}}",
     "saved": "Budżety zapisane",
     "budgetFor": "Budżet dla {{category}}",
+    "invalidAmount": "Wpisz prawidłową kwotę równą zero lub większą.",
     "repeatEveryMonthFor": "Powtarzaj budżet {{category}} co miesiąc",
     "suggest": "Sugeruj z historii",
     "suggestTitle": "Sugeruj budżety",

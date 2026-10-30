@@ -1467,6 +1467,7 @@
     "typicalSpending": "आमतौर पर खर्च {{amount}}",
     "saved": "बजट सहेजे गए",
     "budgetFor": "{{category}} के लिए बजट",
+    "invalidAmount": "शून्य या उससे अधिक की मान्य राशि दर्ज करें।",
     "repeatEveryMonthFor": "{{category}} बजट हर महीने दोहराएँ",
     "suggest": "इतिहास से सुझाएँ",
     "suggestTitle": "बजट सुझाएँ",

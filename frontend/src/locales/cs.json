@@ -1551,6 +1551,7 @@
     "typicalSpending": "usually spent {{amount}}",
     "saved": "Budgets saved",
     "budgetFor": "Budget for {{category}}",
+    "invalidAmount": "Zadejte platnou částku nula nebo vyšší.",
     "repeatEveryMonthFor": "Repeat the {{category}} budget every month",
     "suggest": "Navrhnout z historie",
     "suggestTitle": "Navrhnout rozpočty",

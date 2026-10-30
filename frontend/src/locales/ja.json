@@ -1467,6 +1467,7 @@
     "typicalSpending": "通常の支出 {{amount}}",
     "saved": "予算を保存しました",
     "budgetFor": "{{category}}の予算",
+    "invalidAmount": "0以上の有効な金額を入力してください。",
     "repeatEveryMonthFor": "{{category}}の予算を毎月繰り返す",
     "suggest": "履歴から提案",
     "suggestTitle": "予算を提案",

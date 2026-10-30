@@ -1535,6 +1535,7 @@
     "typicalSpending": "zvyčajne minuté {{amount}}",
     "saved": "Rozpočty uložené",
     "budgetFor": "Rozpočet pre {{category}}",
+    "invalidAmount": "Zadajte platnú sumu nula alebo viac.",
     "repeatEveryMonthFor": "Opakovať rozpočet {{category}} každý mesiac",
     "suggest": "Navrhnúť z histórie",
     "suggestTitle": "Navrhnúť rozpočty",

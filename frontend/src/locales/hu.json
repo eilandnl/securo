@@ -1467,6 +1467,7 @@
     "typicalSpending": "usually spent {{amount}}",
     "saved": "Budgets saved",
     "budgetFor": "Budget for {{category}}",
+    "invalidAmount": "Adjon meg egy érvényes, legalább nulla összeget.",
     "repeatEveryMonthFor": "Repeat the {{category}} budget every month",
     "suggest": "Javaslat a múltból",
     "suggestTitle": "Költségkeretek javaslása",

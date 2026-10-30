@@ -1471,6 +1471,7 @@
     "typicalSpending": "gasto habitual {{amount}}",
     "saved": "Orçamentos salvos",
     "budgetFor": "Orçamento para {{category}}",
+    "invalidAmount": "Insira um valor válido igual ou superior a zero.",
     "repeatEveryMonthFor": "Repetir o orçamento de {{category}} todo mês",
     "suggest": "Sugerir pelo histórico",
     "suggestTitle": "Sugerir orçamentos",

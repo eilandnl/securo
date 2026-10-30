@@ -53,9 +53,11 @@ export function planBudgetChange({
     if (!current) return []
     if (!current.is_recurring) return [{ type: 'update', id: current.id, data: { amount: 0 } }]
     if (startsThisMonth) return [{ type: 'delete', id: current.id }]
-    return recurring
-      ? [{ type: 'update', id: current.id, data: { amount: 0, effective_month: month } }]
-      : [{ type: 'create', data: { category_id: categoryId, amount: 0, month, is_recurring: false } }]
+    if (recurring) return [{ type: 'update', id: current.id, data: { amount: 0, effective_month: month } }]
+    return [
+      { type: 'create', data: { category_id: categoryId, amount: 0, month, is_recurring: false } },
+      { type: 'update', id: current.id, data: { amount: 0, effective_month: nextMonth(month) } },
+    ]
   }
 
   if (recurring) {

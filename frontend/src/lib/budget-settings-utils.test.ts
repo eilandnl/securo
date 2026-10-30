@@ -69,6 +69,7 @@ describe('planBudgetChange', () => {
     expect(plan(0, true, budget({}))).toEqual([{ type: 'update', id: 'b1', data: { amount: 0, effective_month: month } }])
     expect(plan(0, false, budget({}))).toEqual([
       { type: 'create', data: { category_id: 'food', amount: 0, month, is_recurring: false } },
+      { type: 'update', id: 'b1', data: { amount: 0, effective_month: '2026-11-01' } },
     ])
   })
 })
