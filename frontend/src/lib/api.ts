@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { normalizeBudgetComparisonRows, normalizeBudgetForecast, type BudgetForecastData } from '@/lib/budget-overview-utils'
 import type { AxiosResponse } from 'axios'
 import { markDataChanged } from '@/lib/data-changed'
 import type { NumberFormat, DateFormat } from '@/lib/format'
@@ -1337,7 +1338,7 @@ export const budgets = {
     const { data } = await api.post('/budgets', budget)
     return data
   },
-  update: async (id: string, budget: { amount?: number }): Promise<Budget> => {
+  update: async (id: string, budget: { amount?: number; effective_month?: string }): Promise<Budget> => {
     const { data } = await api.patch(`/budgets/${id}`, budget)
     return data
   },
@@ -1346,7 +1347,11 @@ export const budgets = {
   },
   comparison: async (month?: string): Promise<BudgetVsActual[]> => {
     const { data } = await api.get('/budgets/comparison', { params: { month } })
-    return data
+    return normalizeBudgetComparisonRows(data)
+  },
+  forecast: async (month?: string): Promise<BudgetForecastData> => {
+    const { data } = await api.get('/budgets/forecast/monthly', { params: { month } })
+    return normalizeBudgetForecast(data)
   },
   suggestions: async (month: string, months: number): Promise<BudgetSuggestionResponse> => {
     const { data } = await api.get('/budgets/suggestions', { params: { month, months } })

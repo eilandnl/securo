@@ -15,6 +15,7 @@ from app.schemas.budget import (
     BudgetBatchCreate,
     BudgetCopyMonthRequest,
     BudgetCreate,
+    BudgetForecast,
     BudgetForecastResponse,
     BudgetRead,
     BudgetRolloverSummaryResponse,
@@ -22,7 +23,7 @@ from app.schemas.budget import (
     BudgetUpdate,
     BudgetVsActual,
 )
-from app.services import budget_service
+from app.services import budget_forecast_service, budget_service
 
 router = APIRouter(prefix="/api/budgets", tags=["budgets"])
 
@@ -107,6 +108,15 @@ async def budget_comparison(
     session: AsyncSession = Depends(get_async_session),
 ):
     return await budget_service.get_budget_vs_actual(session, ctx.workspace.id, ctx.user_id, month)
+
+
+@router.get("/forecast/monthly", response_model=BudgetForecast)
+async def monthly_budget_forecast(
+    month: Optional[date] = Query(None),
+    ctx: WorkspaceContext = Depends(current_workspace),
+    session: AsyncSession = Depends(get_async_session),
+):
+    return await budget_forecast_service.get_budget_forecast(session, ctx.workspace.id, ctx.user_id, month)
 
 
 @router.post("/copy-month", response_model=list[BudgetRead])
