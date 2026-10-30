@@ -1,15 +1,15 @@
 """loan contract terms: kind, original amount, rate, term and amortization
 
-Revision ID: 099
-Revises: 098
+Revision ID: 102
+Revises: 101
 """
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision = "099"
-down_revision = "098"
+revision = "102"
+down_revision = "101"
 branch_labels = None
 depends_on = None
 

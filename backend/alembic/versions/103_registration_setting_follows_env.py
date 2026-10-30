@@ -13,8 +13,8 @@ install that asked for registration to be closed.
 """
 from alembic import op
 
-revision = "100"
-down_revision = "099"
+revision = "103"
+down_revision = "102"
 branch_labels = None
 depends_on = None
 
