@@ -11,12 +11,13 @@ const plan = (amount: number, recurring: boolean, current?: Budget) =>
   planBudgetChange({ categoryId: 'food', amount, recurring, current, month })
 
 describe('parseBudgetDraft', () => {
-  it('reads decimal commas and treats empty or invalid input as no budget', () => {
-    expect(parseBudgetDraft('12,5')).toBe(12.5)
+  it('reads locale-formatted values and distinguishes invalid input from an empty budget', () => {
+    expect(parseBudgetDraft('12,5', 'de-DE')).toBe(12.5)
+    expect(parseBudgetDraft('1.200,00', 'de-DE')).toBe(1200)
     expect(parseBudgetDraft('400')).toBe(400)
     expect(parseBudgetDraft('')).toBe(0)
-    expect(parseBudgetDraft('abc')).toBe(0)
-    expect(parseBudgetDraft('-5')).toBe(0)
+    expect(parseBudgetDraft('abc')).toBeNull()
+    expect(parseBudgetDraft('-5')).toBeNull()
   })
 })
 
@@ -55,8 +56,15 @@ describe('planBudgetChange', () => {
     ])
   })
 
+  it('keeps this month at the new amount and stops later months when repetition is switched off', () => {
+    expect(plan(80, false, budget({}))).toEqual([
+      { type: 'create', data: { category_id: 'food', amount: 80, month, is_recurring: false } },
+      { type: 'update', id: 'b1', data: { amount: 0, effective_month: '2026-11-01' } },
+    ])
+  })
+
   it('deletes a cleared budget that starts this month, and keeps earlier months of an older one', () => {
-    expect(plan(0, true, budget({ id: 'o1', month, is_recurring: false }))).toEqual([{ type: 'delete', id: 'o1' }])
+    expect(plan(0, true, budget({ id: 'o1', month, is_recurring: false }))).toEqual([{ type: 'update', id: 'o1', data: { amount: 0 } }])
     expect(plan(0, true, budget({ month }))).toEqual([{ type: 'delete', id: 'b1' }])
     expect(plan(0, true, budget({}))).toEqual([{ type: 'update', id: 'b1', data: { amount: 0, effective_month: month } }])
     expect(plan(0, false, budget({}))).toEqual([

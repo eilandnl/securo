@@ -1467,6 +1467,7 @@
     "typicalSpending": "usually spent {{amount}}",
     "saved": "Budgets saved",
     "budgetFor": "Budget for {{category}}",
+    "invalidAmount": "Enter a valid amount of zero or more.",
     "repeatEveryMonthFor": "Repeat the {{category}} budget every month",
     "suggest": "Suggest from history",
     "suggestTitle": "Suggest budgets",

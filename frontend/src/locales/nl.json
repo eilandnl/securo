@@ -1469,6 +1469,7 @@
     "typicalSpending": "meestal uitgegeven {{amount}}",
     "saved": "Budgetten opgeslagen",
     "budgetFor": "Budget voor {{category}}",
+    "invalidAmount": "Vul een geldig bedrag van nul of meer in.",
     "repeatEveryMonthFor": "Budget voor {{category}} elke maand herhalen",
     "suggest": "Suggereer uit geschiedenis",
     "suggestTitle": "Budgetten suggereren",

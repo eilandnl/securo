@@ -1,14 +1,17 @@
 import type { Budget } from '@/types'
+import { parseAmountInput } from '@/lib/format'
 
 export type BudgetOperation =
   | { type: 'create'; data: { category_id: string; amount: number; month: string; is_recurring: boolean } }
   | { type: 'update'; id: string; data: { amount: number; effective_month?: string } }
   | { type: 'delete'; id: string }
 
-/** A draft input as an amount; empty or invalid means "no budget" (0). */
-export function parseBudgetDraft(draft: string): number {
-  const amount = Number(draft.replace(',', '.'))
-  return Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : 0
+/** Empty or zero removes a budget; invalid and negative values are rejected. */
+export function parseBudgetDraft(draft: string, locale = 'en-US'): number | null {
+  if (!draft.trim()) return 0
+  const amount = parseAmountInput(draft, locale)
+  if (amount === null || amount < 0) return null
+  return Math.round(amount * 100) / 100
 }
 
 function nextMonth(month: string): string {
@@ -48,7 +51,8 @@ export function planBudgetChange({
 
   if (amount === 0) {
     if (!current) return []
-    if (!current.is_recurring || startsThisMonth) return [{ type: 'delete', id: current.id }]
+    if (!current.is_recurring) return [{ type: 'update', id: current.id, data: { amount: 0 } }]
+    if (startsThisMonth) return [{ type: 'delete', id: current.id }]
     return recurring
       ? [{ type: 'update', id: current.id, data: { amount: 0, effective_month: month } }]
       : [{ type: 'create', data: { category_id: categoryId, amount: 0, month, is_recurring: false } }]
@@ -70,6 +74,12 @@ export function planBudgetChange({
   if (current?.is_recurring && currentAmount === amount) {
     // Same amount, no longer repeating: this month keeps it, later months stop.
     return [{ type: 'update', id: current.id, data: { amount: 0, effective_month: nextMonth(month) } }]
+  }
+  if (current?.is_recurring) {
+    return [
+      { type: 'create', data: { category_id: categoryId, amount, month, is_recurring: false } },
+      { type: 'update', id: current.id, data: { amount: 0, effective_month: nextMonth(month) } },
+    ]
   }
   return [{ type: 'create', data: { category_id: categoryId, amount, month, is_recurring: false } }]
 }

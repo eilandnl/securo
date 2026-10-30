@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CalendarIcon, Repeat, Sparkles } from 'lucide-react'
+import { AlertCircle, CalendarIcon, Repeat, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 import { useDisplayLocale } from '@/hooks/use-display-locale'
 import { monthLabel, shiftMonth } from '@/lib/month-utils'
@@ -109,15 +109,15 @@ export default function BudgetsPage() {
 
   const fmt = (amount: number) => mask(formatCurrency(amount, userCurrency, locale))
 
-  const { data: budgetsList, isLoading: budgetsLoading } = useQuery({
+  const { data: budgetsList, isLoading: budgetsLoading, isError: budgetsError, error: budgetsLoadError, refetch: refetchBudgets } = useQuery({
     queryKey: ['budgets', selectedMonth],
     queryFn: () => budgetsApi.list(monthParam),
   })
-  const { data: categoriesList } = useQuery({
+  const { data: categoriesList, isLoading: categoriesLoading, isError: categoriesError, error: categoriesLoadError, refetch: refetchCategories } = useQuery({
     queryKey: ['categories'],
     queryFn: categoriesApi.list,
   })
-  const { data: groupsList } = useQuery({
+  const { data: groupsList, isLoading: groupsLoading, isError: groupsError, error: groupsLoadError, refetch: refetchGroups } = useQuery({
     queryKey: ['category-groups'],
     queryFn: groupsApi.list,
   })
@@ -139,13 +139,18 @@ export default function BudgetsPage() {
   const draftFor = (categoryId: string) => drafts[categoryId] ?? (savedAmount(categoryId) > 0 ? String(savedAmount(categoryId)) : '')
   // New budgets repeat every month unless switched off, like the old add dialog's default.
   const recurringFor = (categoryId: string) => current.recurring[categoryId] ?? budgetByCategory.get(categoryId)?.is_recurring ?? true
-  const planFor = (categoryId: string) => planBudgetChange({
-    categoryId,
-    amount: parseBudgetDraft(draftFor(categoryId)),
-    recurring: recurringFor(categoryId),
-    current: budgetByCategory.get(categoryId),
-    month: monthParam,
-  })
+  const parsedDraftFor = (categoryId: string) => parseBudgetDraft(draftFor(categoryId), locale)
+  const planFor = (categoryId: string) => {
+    const amount = parsedDraftFor(categoryId)
+    if (amount === null) return []
+    return planBudgetChange({
+      categoryId,
+      amount,
+      recurring: recurringFor(categoryId),
+      current: budgetByCategory.get(categoryId),
+      month: monthParam,
+    })
+  }
   const suggestionFor = (categoryId: string) => history
     ? Math.round(typicalActualForCategory(history.slice(0, SUGGESTION_MONTHS), categoryId))
     : 0
@@ -164,11 +169,12 @@ export default function BudgetsPage() {
 
   const operations = allCategories.flatMap((category) => planFor(category.id))
   const changedCategories = new Set(allCategories.filter((category) => planFor(category.id).length > 0).map((category) => category.id))
-  const totalBudget = allCategories.reduce((sum, category) => sum + parseBudgetDraft(draftFor(category.id)), 0)
+  const invalidCategories = new Set(allCategories.filter((category) => parsedDraftFor(category.id) === null).map((category) => category.id))
+  const totalBudget = allCategories.reduce((sum, category) => sum + (parsedDraftFor(category.id) ?? 0), 0)
   const typicalSpending = allCategories.reduce((sum, category) => sum + suggestionFor(category.id), 0)
   const suggestionsToApply = allCategories.filter((category) => {
     const suggestion = suggestionFor(category.id)
-    return suggestion > 0 && parseBudgetDraft(draftFor(category.id)) !== suggestion
+    return suggestion > 0 && parsedDraftFor(category.id) !== suggestion
   })
 
   const updateDrafts = (change: (state: DraftState) => Partial<DraftState>) =>
@@ -254,7 +260,12 @@ export default function BudgetsPage() {
           ) : undefined}
         />
 
-        {budgetsLoading || !groupsList ? (
+        {budgetsError || categoriesError || groupsError ? (
+          <div role="alert" className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 text-sm text-rose-700 dark:text-rose-300">
+            <span className="flex items-center gap-2"><AlertCircle size={16} />{extractApiError(budgetsLoadError ?? categoriesLoadError ?? groupsLoadError, t('common.error'))}</span>
+            <Button variant="outline" size="sm" onClick={() => { void Promise.all([refetchBudgets(), refetchCategories(), refetchGroups()]) }}>{t('common.retry')}</Button>
+          </div>
+        ) : budgetsLoading || categoriesLoading || groupsLoading || !budgetsList || !categoriesList || !groupsList ? (
           <div className="p-5 space-y-3">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-10 w-full" />)}</div>
         ) : allCategories.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-10">{t('budgets.noCategories')}</p>
@@ -265,7 +276,7 @@ export default function BudgetsPage() {
               <div className="divide-y divide-border border-b border-border">
                 {section.categories.map((category) => {
                   const draft = draftFor(category.id)
-                  const amount = parseBudgetDraft(draft)
+                  const amount = parsedDraftFor(category.id)
                   const suggestion = suggestionFor(category.id)
                   const values = history ? [...history].reverse().map((rows) => rows.find((row) => row.category_id === category.id)?.actual_amount ?? 0) : []
                   const changed = changedCategories.has(category.id)
@@ -275,10 +286,11 @@ export default function BudgetsPage() {
                       <CategoryIcon icon={category.icon} color={category.color} size="md" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-foreground">{category.name}</p>
+                        {invalidCategories.has(category.id) && <p id={`budget-error-${category.id}`} role="alert" className="text-[11px] text-destructive">{t('budgets.invalidAmount')}</p>}
                         {suggestion > 0 && (
                           <p className="text-[11px] text-muted-foreground tabular-nums">
                             {t('budgets.average', { amount: fmt(suggestion) })}
-                            {canWrite && Math.abs(amount - suggestion) > suggestion * 0.02 && (
+                            {canWrite && Math.abs((amount ?? 0) - suggestion) > suggestion * 0.02 && (
                               <>
                                 {' · '}
                                 <button type="button" className="text-primary hover:underline" onClick={() => setDraft(category.id, String(suggestion))}>
@@ -303,12 +315,14 @@ export default function BudgetsPage() {
                       >
                         <Repeat size={13} />
                       </button>
-                      <div className={`flex w-32 shrink-0 items-center rounded-lg border bg-card px-2.5 focus-within:ring-2 focus-within:ring-primary ${changed ? 'border-primary/60' : 'border-border'}`}>
+                      <div className={`flex w-32 shrink-0 items-center rounded-lg border bg-card px-2.5 focus-within:ring-2 focus-within:ring-primary ${invalidCategories.has(category.id) ? 'border-destructive' : changed ? 'border-primary/60' : 'border-border'}`}>
                         <span className="text-xs text-muted-foreground">{formatCurrency(0, userCurrency, locale).replace(/[\d.,\s]/g, '')}</span>
                         <input
                           type="text"
                           inputMode="decimal"
                           aria-label={t('budgets.budgetFor', { category: category.name })}
+                          aria-invalid={invalidCategories.has(category.id)}
+                          aria-describedby={invalidCategories.has(category.id) ? `budget-error-${category.id}` : undefined}
                           placeholder="0"
                           value={draft}
                           disabled={!canWrite}
@@ -327,7 +341,7 @@ export default function BudgetsPage() {
 
       {/* Save bar: same fixed placement as the transactions bulk-action bar, so it
           stays in reach while editing a long list. */}
-      {canWrite && allCategories.length > 0 && (
+      {canWrite && allCategories.length > 0 && !budgetsLoading && !categoriesLoading && !groupsLoading && !budgetsError && !categoriesError && !groupsError && budgetsList && categoriesList && groupsList && (
         <div className={cn(
           'fixed bottom-0 left-0 right-0 z-40',
           'transition-[left] duration-300 ease-in-out motion-reduce:transition-none',
@@ -345,7 +359,7 @@ export default function BudgetsPage() {
                 <Button variant="outline" size="sm" disabled={operations.length === 0 || saveMutation.isPending} onClick={() => setDraftState(emptyDrafts())}>
                   {t('common.cancel')}
                 </Button>
-                <Button size="sm" disabled={operations.length === 0 || saveMutation.isPending} onClick={() => saveMutation.mutate(operations)}>
+                <Button size="sm" disabled={operations.length === 0 || invalidCategories.size > 0 || saveMutation.isPending} onClick={() => saveMutation.mutate(operations)}>
                   {t('common.save')}
                 </Button>
               </div>
