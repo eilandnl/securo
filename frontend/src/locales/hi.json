@@ -1458,7 +1458,17 @@
     "invalidAmount": "शून्य या उससे अधिक की मान्य राशि दर्ज करें।",
     "repeatEveryMonthFor": "{{category}} बजट हर महीने दोहराएँ",
     "previousMonth": "पिछला महीना",
-    "nextMonth": "अगला महीना"
+    "nextMonth": "अगला महीना",
+    "suggest": "इतिहास से सुझाएँ",
+    "suggestTitle": "बजट सुझाएँ",
+    "suggestDescription": "पिछले {{months}} महीनों की आपकी औसत मासिक खर्च के आधार पर प्रस्तावित सीमाएँ।",
+    "suggestPeriod": "अवधि",
+    "suggestMonths": "महीने",
+    "suggestSpent": "अवधि में खर्च: {{amount}}",
+    "suggestCreate": "बजट बनाएँ",
+    "suggestCreated": "{{count}} बजट बनाए गए",
+    "suggestEmpty": "चुनी गई अवधि में खर्च का कोई इतिहास नहीं है।",
+    "suggestError": "सुझाव लोड नहीं हो सके। थोड़ी देर बाद फिर से कोशिश करें।"
   },
   "goals": {
     "title": "लक्ष्य",

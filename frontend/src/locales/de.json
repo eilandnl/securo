@@ -1459,7 +1459,17 @@
     "invalidAmount": "Gib einen gültigen Betrag von null oder mehr ein.",
     "repeatEveryMonthFor": "Budget für {{category}} jeden Monat wiederholen",
     "previousMonth": "Vormonat",
-    "nextMonth": "Nächster Monat"
+    "nextMonth": "Nächster Monat",
+    "suggest": "Aus Verlauf vorschlagen",
+    "suggestTitle": "Budgets vorschlagen",
+    "suggestDescription": "Vorgeschlagene Limits auf Basis deines durchschnittlichen monatlichen Verbrauchs der letzten {{months}} Monate.",
+    "suggestPeriod": "Zeitraum",
+    "suggestMonths": "Monate",
+    "suggestSpent": "Ausgegeben im Zeitraum: {{amount}}",
+    "suggestCreate": "Budgets erstellen",
+    "suggestCreated": "{{count}} Budgets erstellt",
+    "suggestEmpty": "Keine Ausgaben im gewählten Zeitraum, aus denen vorgeschlagen werden kann.",
+    "suggestError": "Vorschläge konnten nicht geladen werden. Versuche es gleich noch einmal."
   },
   "goals": {
     "title": "Ziele",

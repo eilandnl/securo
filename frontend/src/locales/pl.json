@@ -1511,7 +1511,17 @@
     "invalidAmount": "Wpisz prawidłową kwotę równą zero lub większą.",
     "repeatEveryMonthFor": "Powtarzaj budżet {{category}} co miesiąc",
     "previousMonth": "Poprzedni miesiąc",
-    "nextMonth": "Następny miesiąc"
+    "nextMonth": "Następny miesiąc",
+    "suggest": "Sugeruj z historii",
+    "suggestTitle": "Sugeruj budżety",
+    "suggestDescription": "Proponowane limity na podstawie średnich miesięcznych wydatków z ostatnich {{months}} miesięcy.",
+    "suggestPeriod": "Okres",
+    "suggestMonths": "mies.",
+    "suggestSpent": "Wydatki w okresie: {{amount}}",
+    "suggestCreate": "Utwórz budżety",
+    "suggestCreated": "Utworzono {{count}} budżetów",
+    "suggestEmpty": "Brak historii wydatków w wybranym okresie.",
+    "suggestError": "Nie udało się wczytać sugestii. Spróbuj ponownie za chwilę."
   },
   "goals": {
     "title": "Cele",

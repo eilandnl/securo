@@ -1542,7 +1542,17 @@
     "invalidAmount": "Zadejte platnou částku nula nebo vyšší.",
     "repeatEveryMonthFor": "Repeat the {{category}} budget every month",
     "previousMonth": "Previous month",
-    "nextMonth": "Next month"
+    "nextMonth": "Next month",
+    "suggest": "Navrhnout z historie",
+    "suggestTitle": "Navrhnout rozpočty",
+    "suggestDescription": "Navržené limity podle vašeho průměrného měsíčního vydání za posledních {{months}} měsíců.",
+    "suggestPeriod": "Období",
+    "suggestMonths": "měsíců",
+    "suggestSpent": "Vydáno za období: {{amount}}",
+    "suggestCreate": "Vytvořit rozpočty",
+    "suggestCreated": "Vytvořeno {{count}} rozpočtů",
+    "suggestEmpty": "Ve vybraném období není historie výdajů.",
+    "suggestError": "Návrhy se nepodařilo načíst. Zkuste to znovu za chvíli."
   },
   "goals": {
     "title": "Cíle",

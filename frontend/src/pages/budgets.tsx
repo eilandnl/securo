@@ -10,6 +10,9 @@ import { monthLabel, shiftMonth } from '@/lib/month-utils'
 import { categories as categoriesApi, categoryGroups as groupsApi, budgets as budgetsApi } from '@/lib/api'
 import { extractApiError } from '@/lib/api-errors'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { MonthPicker } from '@/components/ui/monthpicker'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -26,7 +29,7 @@ import { typicalActualForCategory } from '@/lib/budget-settings-utils'
 import { parseBudgetDraft, planBudgetChange, type BudgetOperation } from '@/lib/budget-settings-utils'
 import { todayInTimezone } from '@/lib/date-utils'
 import { formatAmountInput, formatCurrency } from '@/lib/format'
-import type { Category } from '@/types'
+import type { BudgetSuggestion, Category } from '@/types'
 
 /** Months of history shown per category; the suggestion is the median of the latest three. */
 const HISTORY_MONTHS = 6
@@ -90,6 +93,10 @@ export default function BudgetsPage() {
   const [monthOverride, setMonthOverride] = useState<string | null>(() => validRequestedMonth)
   const selectedMonth = monthOverride ?? today.slice(0, 7)
   const [monthCalOpen, setMonthCalOpen] = useState(false)
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [suggestMonths, setSuggestMonths] = useState(3)
+  const [suggestRecurring, setSuggestRecurring] = useState(false)
+  const [suggestEdits, setSuggestEdits] = useState<Record<string, { checked: boolean; amount: string }>>({})
   const uiLocale = i18n.resolvedLanguage ?? i18n.language
   const dateFnsLocale = resolveDateFnsLocale(uiLocale)
   const monthParam = `${selectedMonth}-01`
@@ -120,6 +127,11 @@ export default function BudgetsPage() {
   const { data: groupsList, isLoading: groupsLoading, isError: groupsError, error: groupsLoadError, refetch: refetchGroups } = useQuery({
     queryKey: ['category-groups'],
     queryFn: groupsApi.list,
+  })
+  const { data: suggestionData, isPending: suggestionsPending, isError: suggestionsError } = useQuery({
+    queryKey: ['budgets', 'suggestions', monthParam, suggestMonths],
+    queryFn: () => budgetsApi.suggestions(monthParam, suggestMonths),
+    enabled: suggestOpen,
   })
   const historyMonthKeys = useMemo(
     () => Array.from({ length: HISTORY_MONTHS }, (_, index) => shiftMonth(selectedMonth, -(index + 1))),
@@ -176,6 +188,13 @@ export default function BudgetsPage() {
     const suggestion = suggestionFor(category.id)
     return suggestion > 0 && parsedDraftFor(category.id) !== suggestion
   })
+  const rowFor = (suggestion: BudgetSuggestion) =>
+    suggestEdits[suggestion.category_id] ?? { checked: !suggestion.existing_budget, amount: String(suggestion.suggested_amount) }
+  const suggestable = (suggestionData?.suggestions ?? []).filter((suggestion) => !suggestion.existing_budget)
+  const batchItems = suggestable.filter((suggestion) => {
+    const row = rowFor(suggestion)
+    return row.checked && Number(row.amount) > 0
+  })
 
   const updateDrafts = (change: (state: DraftState) => Partial<DraftState>) =>
     setDraftState((state) => {
@@ -203,6 +222,23 @@ export default function BudgetsPage() {
     onError: (error: unknown) => toast.error(extractApiError(error, t('common.error'))),
     // Even a partly failed save changed some budgets; show what is stored now.
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['budgets'] }),
+  })
+
+  const batchMutation = useMutation({
+    mutationFn: () => budgetsApi.createBatch({
+      month: monthParam,
+      is_recurring: suggestRecurring,
+      items: batchItems.map((suggestion) => ({
+        category_id: suggestion.category_id,
+        amount: Number(rowFor(suggestion).amount),
+      })),
+    }),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] })
+      setSuggestOpen(false)
+      toast.success(t('budgets.suggestCreated', { count: created.length }))
+    },
+    onError: (error: unknown) => toast.error(extractApiError(error, t('common.error'))),
   })
 
   const historyLabels = [...historyMonthKeys].reverse().map((key) => monthLabel(key, uiLocale))
@@ -246,17 +282,23 @@ export default function BudgetsPage() {
         <SectionHeader
           title={t('budgets.monthBudgets', { month: monthTitle })}
           description={t('budgets.suggestionsHint')}
-          action={canWrite && suggestionsToApply.length > 0 ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 h-8"
-              onClick={() => updateDrafts((state) => ({
-                drafts: { ...state.drafts, ...Object.fromEntries(suggestionsToApply.map((category) => [category.id, String(suggestionFor(category.id))])) },
-              }))}
-            >
-              <Sparkles size={13} /> {t('budgets.useAllSuggestions')}
-            </Button>
+          action={canWrite ? (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => { setSuggestEdits({}); setSuggestOpen(true) }}>
+                <Sparkles size={13} /> {t('budgets.suggest')}
+              </Button>
+              <Button
+                disabled={suggestionsToApply.length === 0}
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8"
+                onClick={() => updateDrafts((state) => ({
+                  drafts: { ...state.drafts, ...Object.fromEntries(suggestionsToApply.map((category) => [category.id, String(suggestionFor(category.id))])) },
+                }))}
+              >
+                {t('budgets.useAllSuggestions')}
+              </Button>
+            </div>
           ) : undefined}
         />
 
@@ -338,6 +380,70 @@ export default function BudgetsPage() {
           ))
         )}
       </SectionCard>
+
+      <Dialog open={suggestOpen} onOpenChange={(open) => { setSuggestOpen(open); if (!open) setSuggestEdits({}) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{t('budgets.suggestTitle')}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="space-y-1">
+                <Label>{t('budgets.suggestPeriod')}</Label>
+                <select
+                  value={suggestMonths}
+                  onChange={(event) => { setSuggestMonths(Number(event.target.value)); setSuggestEdits({}) }}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {[3, 6, 12].map((months) => <option key={months} value={months}>{months} {t('budgets.suggestMonths')}</option>)}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer mt-5">
+                <input type="checkbox" checked={suggestRecurring} onChange={(event) => setSuggestRecurring(event.target.checked)} className="rounded border-border" />
+                <span className="text-sm text-foreground">{t('budgets.repeatEveryMonth')}</span>
+              </label>
+            </div>
+            <p className="text-sm text-muted-foreground">{t('budgets.suggestDescription', { months: suggestMonths })}</p>
+            {suggestionsPending ? (
+              <p className="text-sm text-muted-foreground text-center py-8">{t('common.loading')}</p>
+            ) : suggestionsError ? (
+              <p role="alert" className="text-sm text-destructive text-center py-8">{t('budgets.suggestError')}</p>
+            ) : suggestable.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">{t('budgets.suggestEmpty')}</p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
+                {suggestable.map((suggestion) => {
+                  const row = rowFor(suggestion)
+                  return (
+                    <div key={suggestion.category_id} className="flex items-center gap-3 border-b border-border last:border-0 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={row.checked}
+                        onChange={(event) => setSuggestEdits((previous) => ({ ...previous, [suggestion.category_id]: { ...rowFor(suggestion), checked: event.target.checked } }))}
+                        className="rounded border-border"
+                        aria-label={suggestion.category_name}
+                      />
+                      <span className="flex-1 text-sm font-medium text-foreground truncate">{suggestion.category_name}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{t('budgets.suggestSpent', { amount: fmt(Number(suggestion.total_spent)) })}</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={row.amount}
+                        onChange={(event) => setSuggestEdits((previous) => ({ ...previous, [suggestion.category_id]: { ...rowFor(suggestion), amount: event.target.value } }))}
+                        className="w-24 h-8"
+                        aria-label={`${suggestion.category_name} ${t('budgets.amount')}`}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setSuggestOpen(false)}>{t('common.cancel')}</Button>
+            <Button type="button" disabled={batchMutation.isPending || batchItems.length === 0} onClick={() => batchMutation.mutate()}>{t('budgets.suggestCreate')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Save bar: same fixed placement as the transactions bulk-action bar, so it
           stays in reach while editing a long list. */}

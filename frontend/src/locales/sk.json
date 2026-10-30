@@ -1526,7 +1526,17 @@
     "invalidAmount": "Zadajte platnú sumu nula alebo viac.",
     "repeatEveryMonthFor": "Opakovať rozpočet {{category}} každý mesiac",
     "previousMonth": "Predchádzajúci mesiac",
-    "nextMonth": "Nasledujúci mesiac"
+    "nextMonth": "Nasledujúci mesiac",
+    "suggest": "Navrhnúť z histórie",
+    "suggestTitle": "Navrhnúť rozpočty",
+    "suggestDescription": "Navrhnuté limity na základe vášho priemerného mesačného výdavku za posledné {{months}} mesiace.",
+    "suggestPeriod": "Obdobie",
+    "suggestMonths": "mesiacov",
+    "suggestSpent": "Vynaložené za obdobie: {{amount}}",
+    "suggestCreate": "Vytvoriť rozpočty",
+    "suggestCreated": "Vytvorené {{count}} rozpočtov",
+    "suggestEmpty": "Vo vybranom období nie je história výdavkov.",
+    "suggestError": "Návrhy sa nepodarilo načítať. Skúste to znova o chvíľu."
   },
   "goals": {
     "title": "Ciele",

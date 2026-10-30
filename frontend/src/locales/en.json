@@ -1458,7 +1458,17 @@
     "invalidAmount": "Enter a valid amount of zero or more.",
     "repeatEveryMonthFor": "Repeat the {{category}} budget every month",
     "previousMonth": "Previous month",
-    "nextMonth": "Next month"
+    "nextMonth": "Next month",
+    "suggest": "Suggest from history",
+    "suggestTitle": "Suggest budgets",
+    "suggestDescription": "Proposed limits based on your average monthly spending over the last {{months}} months.",
+    "suggestPeriod": "Period",
+    "suggestMonths": "months",
+    "suggestSpent": "Spent {{amount}} in the period",
+    "suggestCreate": "Create budgets",
+    "suggestCreated": "Created {{count}} budgets",
+    "suggestEmpty": "No spending history in the selected period to suggest from.",
+    "suggestError": "Could not load suggestions. Try again in a moment."
   },
   "goals": {
     "title": "Goals",

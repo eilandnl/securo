@@ -1475,7 +1475,17 @@
     "invalidAmount": "Введіть коректну суму від нуля.",
     "repeatEveryMonthFor": "Повторювати бюджет «{{category}}» щомісяця",
     "previousMonth": "Минулий місяць",
-    "nextMonth": "Наступний місяць"
+    "nextMonth": "Наступний місяць",
+    "suggest": "Запропонувати з історії",
+    "suggestTitle": "Запропонувати бюджети",
+    "suggestDescription": "Рекомендовані ліміти на основі середніх місячних витрат за останні {{months}} місяців.",
+    "suggestPeriod": "Період",
+    "suggestMonths": "міс.",
+    "suggestSpent": "Потрачено за період: {{amount}}",
+    "suggestCreate": "Створити бюджети",
+    "suggestCreated": "Створено бюджетів: {{count}}",
+    "suggestEmpty": "Немає історії витрат за обраний період.",
+    "suggestError": "Не вдалося завантажити пропозиції. Спробуйте ще раз трохи згодом."
   },
   "goals": {
     "title": "Цілі",
