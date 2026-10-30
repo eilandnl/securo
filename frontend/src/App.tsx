@@ -26,7 +26,7 @@ const ImportPage = lazy(() => import('@/pages/import'))
 const RulesPage = lazy(() => import('@/pages/rules'))
 const CategoriesPage = lazy(() => import('@/pages/categories'))
 const CollectionsPage = lazy(() => import('@/pages/collections'))
-const BudgetPage = lazy(() => import('@/pages/budget-page'))
+const BudgetsPage = lazy(() => import('@/pages/budgets'))
 const RecurringPage = lazy(() => import('@/pages/recurring'))
 const GoalsPage = lazy(() => import('@/pages/goals'))
 const AssetsPage = lazy(() => import('@/pages/assets'))
@@ -116,7 +116,7 @@ function App() {
                   <Route path="/rules" element={<ModuleRoute module="rules"><RulesPage /></ModuleRoute>} />
                   <Route path="/categories" element={<ModuleRoute module="categories"><CategoriesPage /></ModuleRoute>} />
                   <Route path="/collections" element={<CollectionsPage />} />
-                  <Route path="/budgets" element={<ModuleRoute module="budgets"><BudgetPage /></ModuleRoute>} />
+                  <Route path="/budgets" element={<ModuleRoute module="budgets"><BudgetsPage /></ModuleRoute>} />
                   <Route path="/goals" element={<ModuleRoute module="goals"><GoalsPage /></ModuleRoute>} />
                   <Route path="/recurring" element={<ModuleRoute module="recurring"><RecurringPage /></ModuleRoute>} />
                   <Route path="/assets" element={<ModuleRoute module="assets"><AssetsPage /></ModuleRoute>} />

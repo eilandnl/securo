@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Budget } from '@/types'
-import { parseBudgetDraft, planBudgetChange } from '@/lib/budget-settings-utils'
+import { normalizeBudgetComparisonRows, parseBudgetDraft, planBudgetChange, typicalActualForCategory } from '@/lib/budget-settings-utils'
 
 function budget(overrides: Partial<Budget>): Budget {
   return { id: 'b1', user_id: 'u', category_id: 'food', amount: 100, month: '2026-08-01', is_recurring: true, ...overrides }
@@ -18,6 +18,24 @@ describe('parseBudgetDraft', () => {
     expect(parseBudgetDraft('')).toBe(0)
     expect(parseBudgetDraft('abc')).toBeNull()
     expect(parseBudgetDraft('-5')).toBeNull()
+  })
+})
+
+describe('budget settings helpers', () => {
+  it('normalizes decimal strings returned by the API', () => {
+    expect(normalizeBudgetComparisonRows([{
+      category_id: 'food', category_name: 'Food', category_icon: 'food', category_color: 'blue', group_id: null, group_name: null,
+      budget_amount: '1200.50', actual_amount: '2.25', projected_amount: '3',
+      prev_month_amount: '4', projected_prev_month_amount: '5', percentage_used: '0.2', is_recurring: false,
+    }])[0]).toMatchObject({ budget_amount: 1200.5, actual_amount: 2.25, percentage_used: 0.2 })
+  })
+
+  it('uses the median of monthly spending for a category', () => {
+    expect(typicalActualForCategory([
+      [{ category_id: 'food', actual_amount: 10 } as never],
+      [{ category_id: 'food', actual_amount: 20 } as never],
+      [{ category_id: 'food', actual_amount: 100 } as never],
+    ], 'food')).toBe(20)
   })
 })
 
@@ -64,9 +82,9 @@ describe('planBudgetChange', () => {
     ])
   })
 
-  it('deletes a cleared budget that starts this month, and keeps earlier months of an older one', () => {
+  it('clears a budget that starts this month and keeps earlier months of an older one', () => {
     expect(plan(0, true, budget({ id: 'o1', month, is_recurring: false }))).toEqual([{ type: 'update', id: 'o1', data: { amount: 0 } }])
-    expect(plan(0, true, budget({ month }))).toEqual([{ type: 'delete', id: 'b1' }])
+    expect(plan(0, true, budget({ month }))).toEqual([{ type: 'update', id: 'b1', data: { amount: 0 } }])
     expect(plan(0, true, budget({}))).toEqual([{ type: 'update', id: 'b1', data: { amount: 0, effective_month: month } }])
     expect(plan(0, false, budget({}))).toEqual([
       { type: 'create', data: { category_id: 'food', amount: 0, month, is_recurring: false } },

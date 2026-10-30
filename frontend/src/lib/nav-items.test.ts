@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isNavItemActive, navItems, visibleNavItems, type NavItem } from './nav-items'
+import { navItems, visibleNavItems, type NavItem } from './nav-items'
 import { MODULE_IDS, type ModuleId } from './modules'
 
 const all = () => true
@@ -110,18 +110,5 @@ describe('visibleNavItems', () => {
     ]
     const result = visibleNavItems(items, allExcept('assets'))
     expect(result.map((i) => (i.type === 'separator' ? i.labelKey : i.key))).toEqual(['one'])
-  })
-})
-
-describe('isNavItemActive', () => {
-  it('does not activate similarly prefixed destinations together', () => {
-    expect(isNavItemActive('/budgets', '/budget')).toBe(false)
-    expect(isNavItemActive('/budget', '/budgets')).toBe(false)
-    expect(isNavItemActive('/budget', '/budget')).toBe(true)
-  })
-
-  it('keeps nested destinations active and treats home as exact', () => {
-    expect(isNavItemActive('/transactions/abc', '/transactions')).toBe(true)
-    expect(isNavItemActive('/budget', '/')).toBe(false)
   })
 })

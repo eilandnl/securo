@@ -22,10 +22,10 @@ import { useSidebarState } from '@/contexts/sidebar-state-context'
 import { cn } from '@/lib/utils'
 import { useEffectiveTimezone } from '@/hooks/use-timezone'
 import { resolveDateFnsLocale } from '@/lib/date-fns-locale'
-import { typicalActualForCategory } from '@/lib/budget-overview-utils'
+import { typicalActualForCategory } from '@/lib/budget-settings-utils'
 import { parseBudgetDraft, planBudgetChange, type BudgetOperation } from '@/lib/budget-settings-utils'
 import { todayInTimezone } from '@/lib/date-utils'
-import { formatCurrency } from '@/lib/format'
+import { formatAmountInput, formatCurrency } from '@/lib/format'
 import type { Category } from '@/types'
 
 /** Months of history shown per category; the suggestion is the median of the latest three. */
@@ -136,7 +136,7 @@ export default function BudgetsPage() {
     [budgetsList],
   )
   const savedAmount = (categoryId: string) => Number(budgetByCategory.get(categoryId)?.amount ?? 0)
-  const draftFor = (categoryId: string) => drafts[categoryId] ?? (savedAmount(categoryId) > 0 ? String(savedAmount(categoryId)) : '')
+  const draftFor = (categoryId: string) => drafts[categoryId] ?? (savedAmount(categoryId) > 0 ? formatAmountInput(savedAmount(categoryId), locale) : '')
   // New budgets repeat every month unless switched off, like the old add dialog's default.
   const recurringFor = (categoryId: string) => current.recurring[categoryId] ?? budgetByCategory.get(categoryId)?.is_recurring ?? true
   const parsedDraftFor = (categoryId: string) => parseBudgetDraft(draftFor(categoryId), locale)
@@ -214,7 +214,7 @@ export default function BudgetsPage() {
         title={t('budgets.settingsTitle')}
         action={
           <div className="flex flex-wrap items-center gap-1">
-            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.previousMonth')} onClick={() => selectMonth(shiftMonth(selectedMonth, -1))}>‹</button>
+            <button type="button" className={STEP_BUTTON} aria-label={t('budgets.previousMonth')} onClick={() => selectMonth(shiftMonth(selectedMonth, -1))}>‹</button>
             <Popover open={monthCalOpen} onOpenChange={setMonthCalOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -237,7 +237,7 @@ export default function BudgetsPage() {
                 />
               </PopoverContent>
             </Popover>
-            <button type="button" className={STEP_BUTTON} aria-label={t('budgetOverview.nextMonth')} onClick={() => selectMonth(shiftMonth(selectedMonth, 1))}>›</button>
+            <button type="button" className={STEP_BUTTON} aria-label={t('budgets.nextMonth')} onClick={() => selectMonth(shiftMonth(selectedMonth, 1))}>›</button>
           </div>
         }
       />

@@ -1,5 +1,35 @@
 import type { Budget } from '@/types'
+import type { BudgetVsActual } from '@/types'
 import { parseAmountInput } from '@/lib/format'
+
+type DecimalAmount = number | string
+type BudgetVsActualApiRow = Omit<BudgetVsActual, 'budget_amount' | 'actual_amount' | 'projected_amount' | 'prev_month_amount' | 'projected_prev_month_amount' | 'percentage_used'> & {
+  budget_amount: DecimalAmount | null
+  actual_amount: DecimalAmount
+  projected_amount: DecimalAmount
+  prev_month_amount: DecimalAmount
+  projected_prev_month_amount: DecimalAmount
+  percentage_used: DecimalAmount | null
+}
+
+export function normalizeBudgetComparisonRows(rows: BudgetVsActualApiRow[]): BudgetVsActual[] {
+  return rows.map((row) => ({
+    ...row,
+    budget_amount: row.budget_amount === null ? null : Number(row.budget_amount),
+    actual_amount: Number(row.actual_amount),
+    projected_amount: Number(row.projected_amount),
+    prev_month_amount: Number(row.prev_month_amount),
+    projected_prev_month_amount: Number(row.projected_prev_month_amount),
+    percentage_used: row.percentage_used === null ? null : Number(row.percentage_used),
+  }))
+}
+
+export function typicalActualForCategory(months: BudgetVsActual[][], categoryId: string): number {
+  if (months.length === 0) return 0
+  const values = months.map((rows) => rows.find((row) => row.category_id === categoryId)?.actual_amount ?? 0).sort((a, b) => a - b)
+  const middle = Math.floor(values.length / 2)
+  return values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2
+}
 
 export type BudgetOperation =
   | { type: 'create'; data: { category_id: string; amount: number; month: string; is_recurring: boolean } }
@@ -52,7 +82,7 @@ export function planBudgetChange({
   if (amount === 0) {
     if (!current) return []
     if (!current.is_recurring) return [{ type: 'update', id: current.id, data: { amount: 0 } }]
-    if (startsThisMonth) return [{ type: 'delete', id: current.id }]
+    if (startsThisMonth) return [{ type: 'update', id: current.id, data: { amount: 0 } }]
     if (recurring) return [{ type: 'update', id: current.id, data: { amount: 0, effective_month: month } }]
     return [
       { type: 'create', data: { category_id: categoryId, amount: 0, month, is_recurring: false } },
