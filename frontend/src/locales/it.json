@@ -1481,7 +1481,11 @@
     "suggestCreate": "Crea budget",
     "suggestCreated": "Creati {{count}} budget",
     "suggestEmpty": "Nessuna cronologia di spesa nel periodo selezionato.",
-    "suggestError": "Impossibile caricare i suggerimenti. Riprova tra poco."
+    "suggestError": "Impossibile caricare i suggerimenti. Riprova tra poco.",
+    "invalidAmount": "Inserisci un importo valido pari o superiore a zero.",
+    "previousMonth": "Mese precedente",
+    "nextMonth": "Mese successivo",
+    "hiddenCategory": "Nascosta"
   },
   "goals": {
     "title": "Obiettivi",

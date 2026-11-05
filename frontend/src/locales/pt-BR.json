@@ -1481,7 +1481,11 @@
     "suggestCreate": "Criar orçamentos",
     "suggestCreated": "{{count}} orçamentos criados",
     "suggestEmpty": "Sem histórico de gastos no período selecionado para sugerir.",
-    "suggestError": "Não foi possível carregar as sugestões. Tente novamente em instantes."
+    "suggestError": "Não foi possível carregar as sugestões. Tente novamente em instantes.",
+    "invalidAmount": "Insira um valor válido igual ou superior a zero.",
+    "previousMonth": "Mês anterior",
+    "nextMonth": "Próximo mês",
+    "hiddenCategory": "Oculta"
   },
   "goals": {
     "title": "Metas",

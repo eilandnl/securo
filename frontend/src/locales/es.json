@@ -1481,7 +1481,11 @@
     "suggestCreate": "Crear presupuestos",
     "suggestCreated": "Se crearon {{count}} presupuestos",
     "suggestEmpty": "Sin historial de gastos en el período seleccionado que sugerir.",
-    "suggestError": "No se pudieron cargar las sugerencias. Inténtalo de nuevo en un momento."
+    "suggestError": "No se pudieron cargar las sugerencias. Inténtalo de nuevo en un momento.",
+    "invalidAmount": "Introduce un importe válido de cero o más.",
+    "previousMonth": "Mes anterior",
+    "nextMonth": "Mes siguiente",
+    "hiddenCategory": "Oculta"
   },
   "goals": {
     "title": "Objetivos",

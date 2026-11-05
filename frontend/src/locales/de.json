@@ -1478,7 +1478,11 @@
     "suggestCreate": "Budgets erstellen",
     "suggestCreated": "{{count}} Budgets erstellt",
     "suggestEmpty": "Keine Ausgaben im gewählten Zeitraum, aus denen vorgeschlagen werden kann.",
-    "suggestError": "Vorschläge konnten nicht geladen werden. Versuche es gleich noch einmal."
+    "suggestError": "Vorschläge konnten nicht geladen werden. Versuche es gleich noch einmal.",
+    "invalidAmount": "Gib einen gültigen Betrag von null oder mehr ein.",
+    "previousMonth": "Vormonat",
+    "nextMonth": "Nächster Monat",
+    "hiddenCategory": "Ausgeblendet"
   },
   "goals": {
     "title": "Ziele",

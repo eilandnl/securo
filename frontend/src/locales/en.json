@@ -1477,7 +1477,11 @@
     "suggestCreate": "Create budgets",
     "suggestCreated": "Created {{count}} budgets",
     "suggestEmpty": "No spending history in the selected period to suggest from.",
-    "suggestError": "Could not load suggestions. Try again in a moment."
+    "suggestError": "Could not load suggestions. Try again in a moment.",
+    "invalidAmount": "Enter a valid amount of zero or more.",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "hiddenCategory": "Hidden"
   },
   "goals": {
     "title": "Goals",

@@ -1561,7 +1561,11 @@
     "suggestCreate": "Vytvořit rozpočty",
     "suggestCreated": "Vytvořeno {{count}} rozpočtů",
     "suggestEmpty": "Ve vybraném období není historie výdajů.",
-    "suggestError": "Návrhy se nepodařilo načíst. Zkuste to znovu za chvíli."
+    "suggestError": "Návrhy se nepodařilo načíst. Zkuste to znovu za chvíli.",
+    "invalidAmount": "Zadejte platnou částku nula nebo vyšší.",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "hiddenCategory": "Skrytá"
   },
   "goals": {
     "title": "Cíle",
