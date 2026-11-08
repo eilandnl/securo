@@ -458,16 +458,14 @@ async def get_summary(
             .where(Account.workspace_id == workspace_id)
         ) or 0
 
-    # Pending categorization — exclude opening_balance and transfer pairs
+    # Keep this aligned with the dashboard's uncategorized drill-down, which
+    # requests user_pnl_only=True. For example, mortgage principal rows are
+    # intentionally excluded from P/L and should not inflate this count.
     pending_cat_filters = [
         Transaction.workspace_id == workspace_id,
         Transaction.category_id.is_(None),
         Transaction.source != "opening_balance",
-        # Settlement-sourced rows are auto-generated movements (paying
-        # back / receiving back a group debt). They aren't expenses or
-        # income that need a category, so exclude them.
-        Transaction.source != "settlement",
-        Transaction.transfer_pair_id.is_(None),
+        counts_as_user_pnl(),
         *acct_filter,
     ]
     pending_categorization_result = await session.execute(
